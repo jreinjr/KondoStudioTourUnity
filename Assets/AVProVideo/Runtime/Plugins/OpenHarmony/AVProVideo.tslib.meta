@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: a8183d2a5fa666d4a978fe4f7c85f342
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 278893
+  packageName: AVPro Video v3 - Core Edition
+  packageVersion: 3.3.6
+  assetPath: Assets/AVProVideo/Runtime/Plugins/OpenHarmony/AVProVideo.tslib
+  uploadId: 862142

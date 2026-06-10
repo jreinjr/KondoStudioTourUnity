@@ -1,0 +1,66 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc09100d02bdd6f49b25c528c09cc40a, type: 3}
+  m_Name: DefaultSlideshowStyle
+  m_EditorClassIdentifier: Assembly-CSharp::Kondo.Slideshow.SlideshowStyle
+  hotspotColor: {r: 1, g: 1, b: 1, a: 0.5019608}
+  hotspotIdleAlpha: 0.15
+  hotspotHoverMaxAlpha: 1
+  hotspotRadius: 1500
+  dwellSeconds: 4
+  dwellDecayMultiplier: 2
+  dwellAlphaCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.70102173
+      value: 1.0040643
+      inSlope: 0.011912927
+      outSlope: 0.011912927
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.13340242
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  indicatorColor: {r: 1, g: 1, b: 1, a: 1}
+  indicatorFadeSeconds: 0.15
+  slideFadeOutSeconds: 0.5
+  slideFadeInSeconds: 0.5
+  elementDefaultDelay: 0.4
+  elementDefaultFadeSeconds: 0.6
+  font: {fileID: 0}
+  fontSize: 42
+  textColor: {r: 1, g: 1, b: 1, a: 1}
+  textBackgroundColor: {r: 0, g: 0, b: 0, a: 0.6}
+  textBackgroundPadding: {x: 24, y: 16}
+  maskTint: {r: 0, g: 0, b: 0, a: 0.8}
+  overlayDurationSeconds: 6
+  overlayZoomScale: 1.1
+  overlayZoomSeconds: 0.6
+  overlayHotspotsFadeSeconds: 0.3
+  autoAdvanceDefaultSeconds: 10
+  autoIndicatorWindowSeconds: 3
+  fadeThroughBlackSeconds: 1
+  videoPrepTimeoutSeconds: 3
+  mouseActiveSeconds: 4
+  mouseMoveThresholdPixels: 2

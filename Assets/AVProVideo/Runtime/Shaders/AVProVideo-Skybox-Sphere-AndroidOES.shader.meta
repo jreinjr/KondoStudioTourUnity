@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 1eae6c2be3a6c4093abcd4117c757d06
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 278893
+  packageName: AVPro Video v3 - Core Edition
+  packageVersion: 3.3.6
+  assetPath: Assets/AVProVideo/Runtime/Shaders/AVProVideo-Skybox-Sphere-AndroidOES.shader
+  uploadId: 862142
