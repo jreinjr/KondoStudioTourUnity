@@ -29,8 +29,14 @@ namespace Kondo.Pointing
         [Header("Pointing Detection")]
         public PointingDetectionConfig pointingDetection = new PointingDetectionConfig();
 
-        [Header("Cursor Smoothing (screen-space One Euro, runs at render rate)")]
-        public OneEuroParams cursorFilter = new OneEuroParams(1.2f, 5f, 1f);
+        [Header("Cursor Smoothing (screen-space One Euro, runs at sensor cadence)")]
+        public OneEuroParams cursorFilter = new OneEuroParams(0.3f, 0.4f, 0.6f);
+
+        [Header("Cursor Outlier Rejection (runs before smoothing)")]
+        public UvOutlierGateConfig outlierGate = new UvOutlierGateConfig();
+
+        [Header("Cursor Spring & Rest Stabilizer (runs at render rate)")]
+        public CursorStabilizerConfig cursorStabilizer = new CursorStabilizerConfig();
 
         [Header("Active User Selection")]
         [Tooltip("A challenger must stand this much closer to the screen's center axis (meters) to steal active status from a pointing user.")]
@@ -77,6 +83,27 @@ namespace Kondo.Pointing
             public int UserId;
             public readonly PointingArmSolver Solver = new PointingArmSolver();
             public readonly OneEuroFilterVector2 UvFilter = new OneEuroFilterVector2();
+            public readonly UvOutlierGate OutlierGate = new UvOutlierGate();
+            /// <summary>dt accumulated across frames whose samples never reached the UV filter (discarded, absent, or staircase repeats), so the filter's speed estimate stays honest.</summary>
+            public float PendingFilterDt;
+            /// <summary>dt accumulated between outlier-gate evaluations, for the gate's history aging.</summary>
+            public float PendingGateDt;
+            /// <summary>Previous frame's raw ScreenUV; bit-identical UV means no new sensor information (held joints).</summary>
+            public Vector2 LastRawUv;
+            public bool HasLastRawUv;
+            /// <summary>This frame's fresh sample was rejected by the outlier gate.</summary>
+            public bool LastSampleDiscarded;
+            /// <summary>The UV One Euro filter consumed a sample this frame.</summary>
+            public bool FilterUpdatedThisFrame;
+            /// <summary>Spring-smoothed cursor position; what views and hit-testing consume.</summary>
+            public Vector2 DisplayUv;
+            public Vector2 DisplayUvVelocity;
+            /// <summary>0 = moving, 1 = fully at rest (extra-heavy spring engaged).</summary>
+            public float Rest01;
+            /// <summary>Display-only magnetism toward a hovered hotspot, written by the slideshow layer; expires if not refreshed.</summary>
+            public Vector2 MagnetUv;
+            public float MagnetWeight;
+            public float MagnetSetTime = float.NegativeInfinity;
             public PointerCursorView View;
             public AimSample Sample;
             public float LastSeenTime;
@@ -144,9 +171,52 @@ namespace Kondo.Pointing
                     ? Mathf.Abs(st.Solver.TorsoPosition.x - screen.screenLateralOffsetMeters)
                     : float.PositiveInfinity;
 
+                st.PendingFilterDt += dt;
+                st.PendingGateDt += dt;
+                st.LastSampleDiscarded = false;
+                st.FilterUpdatedThisFrame = false;
+
                 if (st.Sample.HasScreenUV)
                 {
-                    st.Uv = st.UvFilter.Filter(st.Sample.ScreenUV, dt, cursorFilter);
+                    // Bit-identical raw UV means the joints were held (no new sensor frame),
+                    // so there is no new information: skip the gate and filter so the One
+                    // Euro never sees the 30 Hz staircase. Extrapolated joints move every
+                    // frame and still flow through.
+                    bool newSample = !st.HasLastRawUv || st.Sample.ScreenUV != st.LastRawUv;
+                    st.LastRawUv = st.Sample.ScreenUV;
+                    st.HasLastRawUv = true;
+
+                    if (newSample)
+                    {
+                        if (st.OutlierGate.Accept(st.Sample.ScreenUV, st.PendingGateDt, outlierGate))
+                        {
+                            bool wasInitialized = st.UvFilter.IsInitialized;
+                            Vector2 prevFiltered = st.Uv;
+                            st.Uv = st.UvFilter.Filter(st.Sample.ScreenUV, st.PendingFilterDt, cursorFilter);
+                            st.FilterUpdatedThisFrame = true;
+
+                            if (!wasInitialized)
+                            {
+                                // (Re)acquire: snap the spring so the cursor doesn't glide across the screen.
+                                st.DisplayUv = st.Uv;
+                                st.DisplayUvVelocity = Vector2.zero;
+                                st.Rest01 = 0f;
+                            }
+                            else
+                            {
+                                float speed = (st.Uv - prevFiltered).magnitude / Mathf.Max(st.PendingFilterDt, 1e-4f);
+                                UpdateRestState(st, speed, st.PendingFilterDt);
+                            }
+                            st.PendingFilterDt = 0f;
+                        }
+                        else
+                        {
+                            // Discarded outlier: the cursor holds its last position but stays alive.
+                            st.LastSampleDiscarded = true;
+                        }
+                        st.PendingGateDt = 0f;
+                    }
+
                     st.HasUv = true;
                     st.TimeSinceUV = 0f;
                 }
@@ -154,7 +224,23 @@ namespace Kondo.Pointing
                 {
                     st.TimeSinceUV += dt;
                     if (st.TimeSinceUV > cursorHoldSeconds)
-                        st.UvFilter.Reset(); // reacquire snaps instead of gliding across the screen
+                    {
+                        // Reacquire snaps instead of gliding across the screen.
+                        st.UvFilter.Reset();
+                        st.OutlierGate.Reset();
+                        st.PendingFilterDt = 0f;
+                        st.PendingGateDt = 0f;
+                        st.HasLastRawUv = false;
+                    }
+                }
+
+                // Render-rate spring chases the sensor-cadence filtered target, so the
+                // cursor moves smoothly at full frame rate from ~30 Hz data.
+                if (st.HasUv)
+                {
+                    float smoothTime = Mathf.Lerp(cursorStabilizer.smoothTime, cursorStabilizer.restSmoothTime, st.Rest01);
+                    st.DisplayUv = Vector2.SmoothDamp(st.DisplayUv, st.Uv, ref st.DisplayUvVelocity,
+                                                      smoothTime, float.PositiveInfinity, dt);
                 }
             }
             foreach (int id in removalScratch)
@@ -162,6 +248,25 @@ namespace Kondo.Pointing
 
             SelectActiveUser(now);
             DriveViews(dt);
+        }
+
+        /// <summary>
+        /// Rest detector with speed hysteresis: deliberate motion snaps the cursor out of
+        /// the rest hold immediately; near-stillness blends it in over restBlendSeconds.
+        /// </summary>
+        void UpdateRestState(PointerState st, float filteredSpeed, float sampleDt)
+        {
+            if (cursorStabilizer.restSpeedEnter <= 0f)
+            {
+                st.Rest01 = 0f;
+                return;
+            }
+
+            if (filteredSpeed > cursorStabilizer.restSpeedExit)
+                st.Rest01 = 0f;
+            else if (filteredSpeed < cursorStabilizer.restSpeedEnter)
+                st.Rest01 = Mathf.MoveTowards(st.Rest01, 1f, sampleDt / Mathf.Max(cursorStabilizer.restBlendSeconds, 1e-3f));
+            // In the hysteresis band: hold the current rest level.
         }
 
         PointerState CreateState(int id, float now)
@@ -267,7 +372,14 @@ namespace Kondo.Pointing
                 st.View.SetActive(isActive);
                 st.View.SetAlpha(st.Alpha);
                 if (st.HasUv)
-                    st.View.SetUV(st.Uv);
+                {
+                    Vector2 shown = st.DisplayUv;
+                    // Display-only magnetism toward a hovered hotspot; stale data expires
+                    // automatically when the slideshow layer stops refreshing it.
+                    if (st.MagnetWeight > 0f && Time.time - st.MagnetSetTime < 0.1f)
+                        shown = Vector2.Lerp(shown, st.MagnetUv, st.MagnetWeight);
+                    st.View.SetUV(shown);
+                }
             }
         }
 

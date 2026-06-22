@@ -15,7 +15,7 @@ MonoBehaviour:
   hotspotColor: {r: 1, g: 1, b: 1, a: 0.5019608}
   hotspotIdleAlpha: 0.15
   hotspotHoverMaxAlpha: 1
-  hotspotRadius: 1500
+  hotspotRadius: 2500
   dwellSeconds: 4
   dwellDecayMultiplier: 2
   dwellAlphaCurve:

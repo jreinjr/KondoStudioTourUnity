@@ -1829,6 +1829,7 @@ GameObject:
   - component: {fileID: 1068835015}
   - component: {fileID: 1068835014}
   - component: {fileID: 1068835017}
+  - component: {fileID: 1068835019}
   m_Layer: 0
   m_Name: '[Kondo] PointingSystem'
   m_TagString: Untagged
@@ -1862,7 +1863,7 @@ MonoBehaviour:
       beta: 0.5
       dCutoff: 1
   rayModel:
-    primaryModel: 0
+    primaryModel: 1
     useWristForHand: 1
     forearmLengthMeters: 0.35
     minSegmentLengthMeters: 0.05
@@ -1882,9 +1883,13 @@ MonoBehaviour:
     exitRayTowardWall: 0.1
     exitDwellSeconds: 0.5
   cursorFilter:
-    minCutoff: 1.2
-    beta: 5
-    dCutoff: 1
+    minCutoff: 0.3
+    beta: 0.4
+    dCutoff: 0.6
+  outlierGate:
+    maxJumpFromAverage: 0.4
+    averageWindowSeconds: 0.15
+    maxConsecutiveDiscards: 3
   stealMarginMeters: 0.3
   minHoldSeconds: 1.5
   activeLossGraceSeconds: 0.7
@@ -1920,7 +1925,7 @@ MonoBehaviour:
   screenTopBelowSensorMeters: 0.3
   screenLateralOffsetMeters: 0
   wallZOffsetMeters: -0.05
-  flipX: 0
+  flipX: 1
   aimGain: {x: 1.4, y: 1.6}
   aimOffset: {x: 0, y: 0}
   edgeMargin: 0.05
@@ -1969,6 +1974,22 @@ MonoBehaviour:
   drawRays: 1
   showStatsOverlay: 1
   statsHotkeyEnabled: 1
+--- !u!114 &1068835019
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1068835013}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6d5907628f9b47358c40d87ff593f2bc, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Kondo.Debugging.AimCsvRecorder
+  pointerManager: {fileID: 1068835014}
+  recordOnStart: 0
+  hotkeyEnabled: 1
+  flushIntervalSeconds: 1
 --- !u!4 &1068835018
 Transform:
   m_ObjectHideFlags: 0

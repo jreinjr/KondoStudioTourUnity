@@ -91,7 +91,10 @@ namespace Kondo.Slideshow
         /// <summary>Open (paused) the video at the StreamingAssets-relative path. No-op if already prepared.</summary>
         public void Prepare(string relPath)
         {
-            if (relPath == PreparedPath && !HasError)
+            // Same path always early-returns, even after an error: the controller
+            // pre-preps on hover every frame, and re-logging a missing file each
+            // frame stalls the editor enough to break the fallback fade.
+            if (relPath == PreparedPath)
                 return;
 
             PreparedPath = relPath;

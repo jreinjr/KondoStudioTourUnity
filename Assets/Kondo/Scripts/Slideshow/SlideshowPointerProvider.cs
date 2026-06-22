@@ -21,9 +21,13 @@ namespace Kondo.Slideshow
 
         public IReadOnlyList<Vector2> ScreenPoints => points;
 
+        /// <summary>Index of the active Nuitrack user's entry in ScreenPoints, or -1 when absent.</summary>
+        public int SkeletonPointIndex { get; private set; } = -1;
+
         void Update()
         {
             points.Clear();
+            SkeletonPointIndex = -1;
 
             Mouse mouse = Mouse.current;
             if (mouse != null)
@@ -44,10 +48,13 @@ namespace Kondo.Slideshow
                 pointerManager.States.TryGetValue(pointerManager.ActiveUserId, out var state) &&
                 state.HasUv && state.TimeSinceUV <= pointerManager.cursorHoldSeconds)
             {
-                // Same mapping PointerCursorView uses: UV 0..1, bottom-left origin, full screen.
+                // Same mapping PointerCursorView uses: UV 0..1, bottom-left origin, full
+                // screen. Hit-test the spring-smoothed DisplayUv — what the user sees is
+                // what dwells. (The hotspot magnet pull is display-only and excluded here.)
+                SkeletonPointIndex = points.Count;
                 points.Add(new Vector2(
-                    Mathf.Clamp01(state.Uv.x) * Screen.width,
-                    Mathf.Clamp01(state.Uv.y) * Screen.height));
+                    Mathf.Clamp01(state.DisplayUv.x) * Screen.width,
+                    Mathf.Clamp01(state.DisplayUv.y) * Screen.height));
             }
         }
     }

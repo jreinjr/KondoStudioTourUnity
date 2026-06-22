@@ -31,7 +31,7 @@ namespace Kondo.Core
 
         [Header("Aim Trims (artistic control)")]
         [Tooltip("Mirror the horizontal axis. Flip this if pointing left moves the cursor right.")]
-        public bool flipX = false;
+        public bool flipX = true;
 
         [Tooltip("Aim amplification around the screen center. >1 lets users reach the edges without fully extending their arm. Vertical range is usually smaller, so Y gain is typically higher.")]
         public Vector2 aimGain = new Vector2(1.4f, 1.6f);

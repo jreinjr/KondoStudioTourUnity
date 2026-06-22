@@ -165,6 +165,7 @@ namespace Kondo.EditorTools
             var screen = go.AddComponent<ProjectionScreen>();
             var manager = go.AddComponent<UserPointerManager>();
             var debug = go.AddComponent<DebugVisualizer>();
+            var recorder = go.AddComponent<AimCsvRecorder>();
 
             screen.calibrator = calibrator;
 
@@ -177,6 +178,8 @@ namespace Kondo.EditorTools
             debug.screen = screen;
             debug.pointerManager = manager;
             debug.statsText = statsText;
+
+            recorder.pointerManager = manager;
         }
 
         static void EnsureFolder(string parent, string child)

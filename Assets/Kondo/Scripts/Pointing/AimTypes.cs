@@ -65,8 +65,8 @@ namespace Kondo.Pointing
     [Serializable]
     public class RayModelConfig
     {
-        [Tooltip("Preferred aim ray model. The solver automatically degrades to lower models when joints drop out.")]
-        public RayModel primaryModel = RayModel.ElbowToHand;
+        [Tooltip("Preferred aim ray model. The solver automatically degrades to lower models when joints drop out. ShoulderToHand is the recommended default: its ~0.6m baseline roughly halves angular jitter versus the ~0.35m forearm.")]
+        public RayModel primaryModel = RayModel.ShoulderToHand;
 
         [Tooltip("Use the wrist joint instead of the hand joint as the 'hand' end of rays. The Nuitrack hand joint tends to flip around the palm; the wrist is steadier.")]
         public bool useWristForHand = true;
@@ -85,6 +85,31 @@ namespace Kondo.Pointing
 
         [Tooltip("The other arm must keep winning by the margin for this long before the solver switches arms.")]
         [Min(0f)] public float armSwitchDwellSeconds = 0.4f;
+    }
+
+    /// <summary>
+    /// Render-rate cursor stabilizer: the One Euro filter runs at sensor cadence (~30 Hz),
+    /// and a critically-damped spring chases its output every render frame, removing the
+    /// 30 Hz staircase. A rest detector blends to a heavier spring while the user holds
+    /// aim, so the cursor sits still for dwell selection without lagging deliberate moves.
+    /// </summary>
+    [Serializable]
+    public class CursorStabilizerConfig
+    {
+        [Tooltip("Spring smoothing time (seconds) the displayed cursor takes to chase the filtered target during normal motion.")]
+        [Min(0.01f)] public float smoothTime = 0.09f;
+
+        [Tooltip("Filtered-UV speed (screen units/s) below which the cursor counts as held at rest. 0 disables the rest stabilizer.")]
+        [Min(0f)] public float restSpeedEnter = 0.04f;
+
+        [Tooltip("Speed above which rest ends immediately (hysteresis; should exceed the enter speed).")]
+        [Min(0f)] public float restSpeedExit = 0.15f;
+
+        [Tooltip("Spring smoothing time used when fully at rest (heavier hold for dwell steadiness).")]
+        [Min(0.01f)] public float restSmoothTime = 0.35f;
+
+        [Tooltip("Seconds to blend into the rest hold once speed drops below the enter threshold.")]
+        [Min(0.01f)] public float restBlendSeconds = 0.25f;
     }
 
     [Serializable]

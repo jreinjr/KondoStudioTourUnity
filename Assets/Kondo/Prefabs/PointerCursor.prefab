@@ -143,12 +143,12 @@ MonoBehaviour:
   dotRect: {fileID: 7563831202890304843}
   dotImage: {fileID: 863049367156264562}
   canvasGroup: {fileID: 8367530339215027482}
-  activeRingColor: {r: 1, g: 1, b: 1, a: 1}
-  activeDotColor: {r: 1, g: 0.55, b: 0.1, a: 1}
-  activeSize: 80
-  inactiveRingColor: {r: 0.7, g: 0.7, b: 0.7, a: 0.45}
-  inactiveDotColor: {r: 0.9, g: 0.9, b: 0.9, a: 0.6}
-  inactiveSize: 56
+  activeRingColor: {r: 1, g: 1, b: 1, a: 0}
+  activeDotColor: {r: 1, g: 0.55, b: 0.1, a: 0}
+  activeSize: 4
+  inactiveRingColor: {r: 0.7, g: 0.7, b: 0.7, a: 0}
+  inactiveDotColor: {r: 0.9, g: 0.9, b: 0.9, a: 0}
+  inactiveSize: 4
   userTintStrength: 0.6
   dotScale: 0.35
   styleLerpSeconds: 0.15

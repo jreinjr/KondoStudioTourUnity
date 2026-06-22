@@ -82,4 +82,5 @@ nuitrack.lock
 
 # Zipped video archive (>100MB, exceeds GitHub limit)
 /Assets/StreamingAssets/Transitions.zip
+/Assets/StreamingAssets/Transitions/*
 /Assets/StreamingAssets/Transitions.zip.meta

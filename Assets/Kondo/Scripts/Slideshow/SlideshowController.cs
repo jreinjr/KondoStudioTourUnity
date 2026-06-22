@@ -78,7 +78,11 @@ namespace Kondo.Slideshow
             float bestDwell = 0f;
 
             // Each pointer hovers at most one hotspot: the nearest point within radius.
+            // An already-hovered hotspot keeps its hover out to radius × the exit
+            // multiplier (hysteresis), so edge jitter doesn't reset the dwell.
             hovered.Clear();
+            SlideHotspot skeletonHovered = null;
+            float skeletonHoverDist = 0f;
             if (screenPoints != null)
             {
                 for (int i = 0; i < screenPoints.Count; i++)
@@ -87,17 +91,28 @@ namespace Kondo.Slideshow
                     float nearestDist = float.MaxValue;
                     foreach (SlideHotspot hotspot in currentSlide.Hotspots)
                     {
+                        float radius = hotspot.ScreenRadius
+                                     * (hotspot.IsHovered ? style.hotspotExitRadiusMultiplier : 1f);
                         float dist = Vector2.Distance(screenPoints[i], hotspot.ScreenPoint);
-                        if (dist <= hotspot.ScreenRadius && dist < nearestDist)
+                        if (dist <= radius && dist < nearestDist)
                         {
                             nearestDist = dist;
                             nearest = hotspot;
                         }
                     }
                     if (nearest != null)
+                    {
                         hovered.Add(nearest);
+                        if (pointers != null && i == pointers.SkeletonPointIndex)
+                        {
+                            skeletonHovered = nearest;
+                            skeletonHoverDist = nearestDist;
+                        }
+                    }
                 }
             }
+
+            ApplyHotspotMagnetism(skeletonHovered, skeletonHoverDist);
 
             foreach (SlideHotspot hotspot in currentSlide.Hotspots)
             {
@@ -135,6 +150,29 @@ namespace Kondo.Slideshow
             {
                 BeginTransition(currentSlide.AutoAdvanceTarget);
             }
+        }
+
+        /// <summary>
+        /// Display-only cursor pull toward the hovered hotspot's center for the active
+        /// skeleton user. Hit-testing never sees this (stickiness is hysteresis's job);
+        /// the pull just makes the cursor visibly settle onto the target. The weight
+        /// expires in UserPointerManager if we stop refreshing it (e.g. on transition).
+        /// </summary>
+        void ApplyHotspotMagnetism(SlideHotspot hotspot, float distToCenter)
+        {
+            if (hotspot == null || style.hotspotMagnetStrength <= 0f ||
+                pointers == null || pointers.pointerManager == null)
+                return;
+            if (!pointers.pointerManager.States.TryGetValue(pointers.pointerManager.ActiveUserId, out var st))
+                return;
+
+            // Proximity fades the pull in toward the center and to zero at the enter
+            // radius, so there is no tug at the hysteresis annulus.
+            float proximity = 1f - Mathf.Clamp01(distToCenter / Mathf.Max(hotspot.ScreenRadius, 1e-3f));
+            Vector2 centerPx = hotspot.ScreenPoint;
+            st.MagnetUv = new Vector2(centerPx.x / Screen.width, centerPx.y / Screen.height);
+            st.MagnetWeight = style.hotspotMagnetStrength * proximity;
+            st.MagnetSetTime = Time.time;
         }
 
         /// <summary>

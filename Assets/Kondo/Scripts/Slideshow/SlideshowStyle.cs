@@ -21,6 +21,10 @@ namespace Kondo.Slideshow
         [Min(0.05f)] public float dwellSeconds = 0.8f;
         [Tooltip("How much faster dwell drains than it fills once the cursor leaves.")]
         [Min(0f)] public float dwellDecayMultiplier = 2f;
+        [Tooltip("Once hovered, a hotspot stays hovered until the pointer leaves its radius times this multiplier, so edge jitter doesn't reset the dwell. 1 = off.")]
+        [Min(1f)] public float hotspotExitRadiusMultiplier = 1.3f;
+        [Tooltip("How strongly the DISPLAYED cursor is pulled toward a hovered hotspot's center (0 = off). Hit-testing is unaffected.")]
+        [Range(0f, 1f)] public float hotspotMagnetStrength = 0.25f;
         [Tooltip("Maps dwell progress (0..1) to the hotspot's idle-to-hover alpha blend.")]
         public AnimationCurve dwellAlphaCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
 

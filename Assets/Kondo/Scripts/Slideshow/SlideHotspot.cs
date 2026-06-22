@@ -46,6 +46,8 @@ namespace Kondo.Slideshow
         float dwell01;
 
         public float Dwell01 => dwell01;
+        /// <summary>True while a pointer holds this hotspot (including the hysteresis annulus).</summary>
+        public bool IsHovered { get; private set; }
         public RectTransform Rect => (RectTransform)transform;
         public SlideTransitionTarget Target => target;
         public float Radius => overrideRadius || style == null ? radiusOverride : style.hotspotRadius;
@@ -78,6 +80,7 @@ namespace Kondo.Slideshow
         /// <summary>Advance or drain the dwell. Returns true exactly once, on the frame dwell completes.</summary>
         public bool UpdateHover(bool hovered, float dt)
         {
+            IsHovered = hovered;
             float before = dwell01;
             float rate = dt / DwellSeconds;
             float decay = style != null ? style.dwellDecayMultiplier : 2f;
@@ -99,6 +102,7 @@ namespace Kondo.Slideshow
         public void ResetDwell(bool snapAlpha = true)
         {
             dwell01 = 0f;
+            IsHovered = false;
             if (snapAlpha && group != null)
                 group.alpha = style != null ? style.hotspotIdleAlpha : 0.25f;
             if (indicator != null)
@@ -136,6 +140,8 @@ namespace Kondo.Slideshow
                 group = GetComponent<CanvasGroup>();
             if (image == null)
                 image = GetComponent<Image>();
+            if (action == HotspotAction.Transition && overlayElements != null && overlayElements.Length > 0)
+                Debug.LogWarning($"[SlideHotspot] {name}: overlay elements are assigned but the action is Transition — they will never show. Did you mean ShowOverlay?", this);
             ApplyStyle();
         }
 
