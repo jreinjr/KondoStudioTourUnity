@@ -81,7 +81,7 @@ namespace Kondo.Debugging
                     sb.Append(s.HasRay ? $"  model={s.ModelUsed}  q={s.Quality:F2}" : "  no ray");
                     if (!float.IsInfinity(st.Centrality))
                         sb.Append($"  center|x|={st.Centrality:F2}m");
-                    float age = st.Solver.FreshDataAge;
+                    float age = st.Solver is PointingArmSolver armSolver ? armSolver.FreshDataAge : float.PositiveInfinity;
                     sb.Append(float.IsInfinity(age) ? "  data: none" : $"  data age={age * 1000f:F0}ms");
                     if (s.HasScreenUV)
                         sb.Append($"  uv=({st.Uv.x:F2},{st.Uv.y:F2}){(s.OnScreen ? "" : " OFF")}");
@@ -151,9 +151,9 @@ namespace Kondo.Debugging
                 UserPointerManager.PointerState st = kv.Value;
                 bool isActive = kv.Key == pointerManager.ActiveUserId;
 
-                if (drawSkeletons)
+                if (drawSkeletons && st.Solver is PointingArmSolver armSolver)
                 {
-                    foreach (JointTracker tracker in st.Solver.Trackers.Values)
+                    foreach (JointTracker tracker in armSolver.Trackers.Values)
                     {
                         if (!tracker.IsUsable)
                             continue;

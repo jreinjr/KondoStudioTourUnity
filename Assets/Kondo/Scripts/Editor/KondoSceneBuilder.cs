@@ -37,7 +37,7 @@ namespace Kondo.EditorTools
             RectTransform debugCanvas = BuildCanvas("[Kondo] DebugCanvas", 100);
             Text statsText = BuildStatsText(debugCanvas);
             PointerCursorView cursorPrefab = EnsureCursorPrefab();
-            BuildPointingSystem(cursorCanvas, cursorPrefab, statsText);
+            BuildPointingSystem(cursorCanvas, debugCanvas, cursorPrefab, statsText);
             KondoSlideshowBuilder.BuildRig();
 
             EditorSceneManager.MarkSceneDirty(scene);
@@ -158,7 +158,7 @@ namespace Kondo.EditorTools
             return prefab.GetComponent<PointerCursorView>();
         }
 
-        static void BuildPointingSystem(RectTransform cursorCanvas, PointerCursorView cursorPrefab, Text statsText)
+        static void BuildPointingSystem(RectTransform cursorCanvas, RectTransform debugCanvas, PointerCursorView cursorPrefab, Text statsText)
         {
             var go = new GameObject("[Kondo] PointingSystem");
             var calibrator = go.AddComponent<SensorPoseCalibrator>();
@@ -180,6 +180,52 @@ namespace Kondo.EditorTools
             debug.statsText = statsText;
 
             recorder.pointerManager = manager;
+
+            BuildSkeletonOverlay(debugCanvas, calibrator, screen, manager);
+        }
+
+        /// <summary>
+        /// Add/replace the on-screen skeleton + box debug overlay (F2 toggle) on the debug
+        /// canvas. Idempotent. Exposed as a menu item so it can be dropped into an already
+        /// tuned scene without rebuilding (which would reset on-site pointing values).
+        /// </summary>
+        [MenuItem("Kondo/Add Skeleton Debug Overlay")]
+        public static void AddSkeletonDebugOverlay()
+        {
+            var manager = Object.FindFirstObjectByType<UserPointerManager>();
+            var calibrator = Object.FindFirstObjectByType<SensorPoseCalibrator>();
+            var screen = Object.FindFirstObjectByType<ProjectionScreen>();
+            var debugCanvasGo = GameObject.Find("[Kondo] DebugCanvas");
+            if (manager == null || calibrator == null || screen == null || debugCanvasGo == null)
+            {
+                Debug.LogError("[KondoSceneBuilder] Could not find the pointing system or [Kondo] DebugCanvas in the open scene. " +
+                               "Open the studio tour scene first (or run 'Build Studio Tour Scene' for a fresh one).");
+                return;
+            }
+
+            BuildSkeletonOverlay((RectTransform)debugCanvasGo.transform, calibrator, screen, manager);
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            Debug.Log("[KondoSceneBuilder] Skeleton debug overlay added to [Kondo] DebugCanvas — press F2 at runtime to toggle it.");
+        }
+
+        static void BuildSkeletonOverlay(RectTransform debugCanvas, SensorPoseCalibrator calibrator, ProjectionScreen screen, UserPointerManager manager)
+        {
+            Transform existing = debugCanvas.Find("SkeletonOverlay");
+            if (existing != null)
+                Object.DestroyImmediate(existing.gameObject);
+
+            var overlayGo = new GameObject("SkeletonOverlay", typeof(RectTransform), typeof(SkeletonDebugOverlay));
+            var overlayRect = (RectTransform)overlayGo.transform;
+            overlayRect.SetParent(debugCanvas, false);
+            overlayRect.anchorMin = Vector2.zero;
+            overlayRect.anchorMax = Vector2.one;
+            overlayRect.offsetMin = Vector2.zero;
+            overlayRect.offsetMax = Vector2.zero;
+            var overlay = overlayGo.GetComponent<SkeletonDebugOverlay>();
+            overlay.calibrator = calibrator;
+            overlay.screen = screen;
+            overlay.pointerManager = manager;
+            overlay.container = overlayRect;
         }
 
         static void EnsureFolder(string parent, string child)

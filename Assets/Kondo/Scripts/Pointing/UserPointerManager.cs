@@ -20,6 +20,16 @@ namespace Kondo.Pointing
         public RectTransform cursorCanvas;
         public PointerCursorView cursorPrefab;
 
+        [Header("Pointing Strategy")]
+        [Tooltip("Which pointing implementation drives the cursor. Switchable live in Play mode.")]
+        public PointingMode pointingMode = PointingMode.ArmRay;
+
+        [Tooltip("Mapping + smoothing for the horizontal-only pointing modes (JointBoundsCenter, SpineHorizontal). Needs on-site calibration.")]
+        public HorizontalPointingConfig horizontalPointing = new HorizontalPointingConfig();
+
+        [Tooltip("Interaction box for the BoxCursor pointing mode (also visualized by the skeleton debug overlay).")]
+        public BoxCursorConfig boxCursor = new BoxCursorConfig();
+
         [Header("Joint Filtering")]
         public JointFilterConfig jointFilter = new JointFilterConfig();
 
@@ -39,6 +49,15 @@ namespace Kondo.Pointing
         public CursorStabilizerConfig cursorStabilizer = new CursorStabilizerConfig();
 
         [Header("Active User Selection")]
+        [Tooltip("How the single active (slideshow-driving) user is chosen. Switchable live in Play mode.")]
+        public ActiveUserMode activeUserMode = ActiveUserMode.CentralPointing;
+
+        [Tooltip("ClosestToScreen: a challenger must stand at least this much closer to the wall (meters) than the active user to steal.")]
+        [Min(0f)] public float closestDepthStealMarginMeters = 0.25f;
+
+        [Tooltip("ClosestToScreen: minimum seconds the active user keeps status before a closer challenger can steal.")]
+        [Min(0f)] public float closestMinHoldSeconds = 1f;
+
         [Tooltip("A challenger must stand this much closer to the screen's center axis (meters) to steal active status from a pointing user.")]
         [Min(0f)] public float stealMarginMeters = 0.3f;
 
@@ -81,7 +100,7 @@ namespace Kondo.Pointing
         public class PointerState
         {
             public int UserId;
-            public readonly PointingArmSolver Solver = new PointingArmSolver();
+            public IPointingSolver Solver;
             public readonly OneEuroFilterVector2 UvFilter = new OneEuroFilterVector2();
             public readonly UvOutlierGate OutlierGate = new UvOutlierGate();
             /// <summary>dt accumulated across frames whose samples never reached the UV filter (discarded, absent, or staircase repeats), so the filter's speed estimate stays honest.</summary>
@@ -115,14 +134,28 @@ namespace Kondo.Pointing
             public bool HasUv;
             public float Alpha;
             public float Centrality = float.PositiveInfinity;
+            /// <summary>Room-space body reference from the pointing solver (X drives centrality, Z drives distance-to-screen).</summary>
+            public Vector3 BodyPosition;
+            public bool HasBody;
         }
 
         readonly Dictionary<int, PointerState> states = new Dictionary<int, PointerState>();
         readonly Dictionary<int, UserData> presentUsers = new Dictionary<int, UserData>();
         readonly List<int> removalScratch = new List<int>();
 
+        IActiveUserSelector activeSelector;
+        PointingMode lastPointingMode;
+        ActiveUserMode lastActiveUserMode;
+
         public IReadOnlyDictionary<int, PointerState> States => states;
         public int ActiveUserId { get; private set; } = -1;
+
+        void Awake()
+        {
+            lastPointingMode = pointingMode;
+            lastActiveUserMode = activeUserMode;
+            activeSelector = BuildActiveSelector();
+        }
 
         void Update()
         {
@@ -134,6 +167,8 @@ namespace Kondo.Pointing
                 FadeAllCursors(dt);
                 return;
             }
+
+            ApplyModeSwitches();
 
             presentUsers.Clear();
             if (NuitrackManager.sensorsData != null && NuitrackManager.sensorsData.Count > 0)
@@ -160,15 +195,16 @@ namespace Kondo.Pointing
                     continue;
                 }
 
-                st.Sample = st.Solver.Update(user, dt, calibrator.RoomFromSensor, screen,
-                                             jointFilter, rayModel, pointingDetection);
+                st.Sample = st.Solver.Update(new PointingFrame(user, dt, calibrator.RoomFromSensor, screen));
+                st.HasBody = st.Solver.HasBody;
+                st.BodyPosition = st.Solver.BodyPosition;
 
                 st.PointingDuration = st.Sample.IsPointing ? st.PointingDuration + dt : 0f;
                 if (st.Sample.IsPointing)
                     st.LastPointingTime = now;
 
-                st.Centrality = st.Solver.HasTorso
-                    ? Mathf.Abs(st.Solver.TorsoPosition.x - screen.screenLateralOffsetMeters)
+                st.Centrality = st.HasBody
+                    ? Mathf.Abs(st.BodyPosition.x - screen.screenLateralOffsetMeters)
                     : float.PositiveInfinity;
 
                 st.PendingFilterDt += dt;
@@ -246,9 +282,47 @@ namespace Kondo.Pointing
             foreach (int id in removalScratch)
                 RemoveState(id);
 
-            SelectActiveUser(now);
+            UpdateActiveUser(now);
             DriveViews(dt);
         }
+
+        /// <summary>Apply live changes to the pointing/active-user dropdowns: rebuild solvers / swap the selector.</summary>
+        void ApplyModeSwitches()
+        {
+            if (pointingMode != lastPointingMode)
+            {
+                lastPointingMode = pointingMode;
+                foreach (PointerState st in states.Values)
+                {
+                    st.Solver = BuildSolver();
+                    st.UvFilter.Reset();
+                    st.OutlierGate.Reset();
+                    st.HasLastRawUv = false;
+                    st.HasUv = false;
+                    st.PendingFilterDt = 0f;
+                    st.PendingGateDt = 0f;
+                }
+            }
+            if (activeSelector == null || activeUserMode != lastActiveUserMode)
+            {
+                lastActiveUserMode = activeUserMode;
+                activeSelector = BuildActiveSelector();
+            }
+        }
+
+        IPointingSolver BuildSolver() => pointingMode switch
+        {
+            PointingMode.JointBoundsCenter => new JointBoundsPointingSolver(jointFilter, horizontalPointing),
+            PointingMode.SpineHorizontal => new SpinePointingSolver(jointFilter, horizontalPointing),
+            PointingMode.BoxCursor => new BoxCursorPointingSolver(jointFilter, boxCursor),
+            _ => new PointingArmSolver(jointFilter, rayModel, pointingDetection),
+        };
+
+        IActiveUserSelector BuildActiveSelector() => activeUserMode switch
+        {
+            ActiveUserMode.ClosestToScreen => new ClosestToScreenSelector(this),
+            _ => new CentralPointingSelector(this),
+        };
 
         /// <summary>
         /// Rest detector with speed hysteresis: deliberate motion snaps the cursor out of
@@ -272,6 +346,7 @@ namespace Kondo.Pointing
         PointerState CreateState(int id, float now)
         {
             var st = new PointerState { UserId = id, LastSeenTime = now };
+            st.Solver = BuildSolver();
             if (cursorPrefab != null && cursorCanvas != null)
             {
                 st.View = Instantiate(cursorPrefab, cursorCanvas);
@@ -296,53 +371,18 @@ namespace Kondo.Pointing
                 ActiveUserId = -1;
         }
 
-        void SelectActiveUser(float now)
+        void UpdateActiveUser(float now)
         {
-            PointerState active = null;
-            if (ActiveUserId >= 0 && !states.TryGetValue(ActiveUserId, out active))
-            {
-                ActiveUserId = -1;
-                active = null;
-            }
+            if (activeSelector == null)
+                activeSelector = BuildActiveSelector();
 
-            // Best challenger: most central user that has been pointing long enough.
-            PointerState best = null;
-            foreach (PointerState st in states.Values)
+            int newId = activeSelector.Select(states, ActiveUserId, now);
+            if (newId != ActiveUserId)
             {
-                if (st.UserId == ActiveUserId)
-                    continue;
-                if (!st.Sample.IsPointing || st.PointingDuration < candidateMinPointSeconds)
-                    continue;
-                if (best == null || st.Centrality < best.Centrality)
-                    best = st;
+                ActiveUserId = newId;
+                if (newId >= 0 && states.TryGetValue(newId, out PointerState st))
+                    st.ActiveSince = now;
             }
-
-            if (active != null)
-            {
-                bool stillPointing = active.Sample.IsPointing
-                                  || now - active.LastPointingTime <= activeLossGraceSeconds;
-                if (!stillPointing)
-                {
-                    SetActive(best, now);
-                }
-                else if (best != null
-                         && best.Centrality < active.Centrality - stealMarginMeters
-                         && now - active.ActiveSince >= minHoldSeconds)
-                {
-                    SetActive(best, now);
-                }
-            }
-            else if (best != null)
-            {
-                SetActive(best, now);
-            }
-        }
-
-        void SetActive(PointerState st, float now)
-        {
-            ActiveUserId = st?.UserId ?? -1;
-            if (st != null)
-                st.ActiveSince = now;
         }
 
         void DriveViews(float dt)

@@ -35,10 +35,21 @@ namespace Kondo.Slideshow
         public SlideshowPointerProvider pointers;
         public TransitionVideoPlayer video;
 
+        [Header("Hotspot Selection")]
+        [Tooltip("How hotspots are selected. Switchable live in Play mode.")]
+        public HotspotSelectionMode hotspotMode = HotspotSelectionMode.InImage;
+        [Tooltip("Bottom-row selection UI (required for the BottomRow mode).")]
+        public HotspotRowView hotspotRow;
+
         Slide currentSlide;
         SlideTransitionTarget pendingTarget;
         SlideshowState state;
         readonly HashSet<SlideHotspot> hovered = new HashSet<SlideHotspot>();
+
+        readonly InImageHotspotSelector inImageSelector = new InImageHotspotSelector();
+        IHotspotSelector activeSelector;
+        HotspotSelectionMode lastHotspotMode;
+        Slide selectorSlide;
 
         public SlideshowState State => state;
         public Slide CurrentSlide => currentSlide;
@@ -54,9 +65,40 @@ namespace Kondo.Slideshow
             if (blackout != null)
                 blackout.alpha = 0f;
 
+            lastHotspotMode = hotspotMode;
+            activeSelector = ResolveSelector();
+
             state = SlideshowState.FadingIn;
             currentSlide = SpawnSlide(startSlidePrefab);
             StartCoroutine(InitialReveal());
+        }
+
+        IHotspotSelector ResolveSelector()
+        {
+            if (hotspotMode == HotspotSelectionMode.BottomRow)
+            {
+                if (hotspotRow != null)
+                    return hotspotRow;
+                Debug.LogWarning("[SlideshowController] hotspotMode is BottomRow but no HotspotRowView is assigned — using in-image selection.", this);
+            }
+            return inImageSelector;
+        }
+
+        /// <summary>(Re)point the active selector at the current slide, matching the show state.</summary>
+        void ActivateSelectorForCurrentSlide()
+        {
+            if (activeSelector == null)
+                return;
+            if (currentSlide != null && state == SlideshowState.Idle)
+            {
+                activeSelector.OnSlideChanged(currentSlide);
+                selectorSlide = currentSlide;
+                activeSelector.SetVisible(true);
+            }
+            else
+            {
+                activeSelector.SetVisible(false);
+            }
         }
 
         IEnumerator InitialReveal()
@@ -67,6 +109,17 @@ namespace Kondo.Slideshow
 
         void Update()
         {
+            if (hotspotMode != lastHotspotMode)
+            {
+                lastHotspotMode = hotspotMode;
+                IHotspotSelector previous = activeSelector;
+                activeSelector = ResolveSelector();
+                if (previous != null && previous != activeSelector)
+                    previous.SetVisible(false);
+                selectorSlide = null;
+                ActivateSelectorForCurrentSlide();
+            }
+
             if (state != SlideshowState.Idle || currentSlide == null)
                 return;
 
@@ -91,9 +144,9 @@ namespace Kondo.Slideshow
                     float nearestDist = float.MaxValue;
                     foreach (SlideHotspot hotspot in currentSlide.Hotspots)
                     {
-                        float radius = hotspot.ScreenRadius
+                        float radius = activeSelector.ZoneRadius(hotspot)
                                      * (hotspot.IsHovered ? style.hotspotExitRadiusMultiplier : 1f);
-                        float dist = Vector2.Distance(screenPoints[i], hotspot.ScreenPoint);
+                        float dist = Vector2.Distance(screenPoints[i], activeSelector.ZonePoint(hotspot));
                         if (dist <= radius && dist < nearestDist)
                         {
                             nearestDist = dist;
@@ -125,6 +178,8 @@ namespace Kondo.Slideshow
                     prepCandidate = hotspot;
                 }
             }
+
+            activeSelector.Tick(currentSlide.Hotspots, dt);
 
             bool autoFired = currentSlide.TickAutoAdvance(dt);
 
@@ -168,8 +223,8 @@ namespace Kondo.Slideshow
 
             // Proximity fades the pull in toward the center and to zero at the enter
             // radius, so there is no tug at the hysteresis annulus.
-            float proximity = 1f - Mathf.Clamp01(distToCenter / Mathf.Max(hotspot.ScreenRadius, 1e-3f));
-            Vector2 centerPx = hotspot.ScreenPoint;
+            float proximity = 1f - Mathf.Clamp01(distToCenter / Mathf.Max(activeSelector.ZoneRadius(hotspot), 1e-3f));
+            Vector2 centerPx = activeSelector.ZonePoint(hotspot);
             st.MagnetUv = new Vector2(centerPx.x / Screen.width, centerPx.y / Screen.height);
             st.MagnetWeight = style.hotspotMagnetStrength * proximity;
             st.MagnetSetTime = Time.time;
@@ -183,6 +238,7 @@ namespace Kondo.Slideshow
         {
             Debug.Log($"[SlideshowController] Overlay fired: '{hotspot.name}' on '{currentSlide.name}' t={Time.time:F2}");
             state = SlideshowState.OverlayShowing;
+            activeSelector?.SetVisible(false);
             Slide slide = currentSlide;
             slide.CancelAutoAdvance();
 
@@ -233,6 +289,7 @@ namespace Kondo.Slideshow
 
             Debug.Log($"[SlideshowController] {target.kind} transition: '{currentSlide.name}' → '{target.targetSlide.name}' t={Time.time:F2}");
             pendingTarget = target;
+            activeSelector?.SetVisible(false);
             currentSlide.CancelAutoAdvance();
 
             if (target.kind == TransitionKind.Video)
@@ -359,6 +416,16 @@ namespace Kondo.Slideshow
             pendingTarget = null;
             state = SlideshowState.Idle;
             currentSlide.BeginAutoAdvance();
+
+            if (activeSelector != null)
+            {
+                if (currentSlide != selectorSlide)
+                {
+                    activeSelector.OnSlideChanged(currentSlide);
+                    selectorSlide = currentSlide;
+                }
+                activeSelector.SetVisible(true);
+            }
         }
     }
 }

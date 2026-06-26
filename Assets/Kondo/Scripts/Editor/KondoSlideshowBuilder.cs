@@ -195,7 +195,8 @@ namespace Kondo.EditorTools
             foreach (GameObject root in EditorSceneManager.GetActiveScene().GetRootGameObjects())
             {
                 if (root.name == "[Kondo] VideoCanvas" || root.name == "[Kondo] SlideCanvas" ||
-                    root.name == "[Kondo] BlackoutCanvas" || root.name == "[Kondo] Slideshow")
+                    root.name == "[Kondo] BlackoutCanvas" || root.name == "[Kondo] HotspotRowCanvas" ||
+                    root.name == "[Kondo] Slideshow")
                     Object.DestroyImmediate(root);
             }
 
@@ -250,6 +251,21 @@ namespace Kondo.EditorTools
             var hud = rig.AddComponent<SlideshowDebugHud>();
             hud.controller = controller;
             hud.pointers = provider;
+
+            // Bottom-row hotspot selection UI (used when the controller's hotspotMode is BottomRow).
+            // Above the slide/blackout, below the cursor.
+            RectTransform rowCanvas = BuildCanvas("[Kondo] HotspotRowCanvas", -2);
+            var rowGo = new GameObject("Row", typeof(RectTransform), typeof(CanvasGroup), typeof(HotspotRowView));
+            var rowRect = (RectTransform)rowGo.transform;
+            FullStretch(rowRect, rowCanvas);
+            var rowView = rowGo.GetComponent<HotspotRowView>();
+            rowView.style = style;
+            rowView.container = rowRect;
+            rowView.group = rowGo.GetComponent<CanvasGroup>();
+            rowView.group.alpha = 0f;
+            var indicatorPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(IndicatorPrefabPath);
+            rowView.indicatorPrefab = indicatorPrefab != null ? indicatorPrefab.GetComponent<DwellIndicator>() : null;
+            controller.hotspotRow = rowView;
 
             controller.startSlidePrefab = FindFirstSlidePrefab();
             if (controller.startSlidePrefab == null)

@@ -115,8 +115,9 @@ namespace Kondo.Debugging
             sb.Append(Time.deltaTime.ToString("F5", Inv)).Append(',');
             sb.Append(st.UserId).Append(',');
             sb.Append(st.UserId == pointerManager.ActiveUserId ? '1' : '0').Append(',');
-            if (!float.IsInfinity(st.Solver.FreshDataAge))
-                sb.Append((st.Solver.FreshDataAge * 1000f).ToString("F1", Inv));
+            PointingArmSolver armSolver = st.Solver as PointingArmSolver;
+            if (armSolver != null && !float.IsInfinity(armSolver.FreshDataAge))
+                sb.Append((armSolver.FreshDataAge * 1000f).ToString("F1", Inv));
             sb.Append(',');
             sb.Append(s.ModelUsed).Append(',');
             sb.Append(s.Arm).Append(',');
@@ -132,12 +133,12 @@ namespace Kondo.Debugging
             sb.Append(st.Rest01.ToString("F3", Inv)).Append(',');
             sb.Append(st.MagnetWeight.ToString("F3", Inv)).Append(',');
 
-            Arm arm = st.Solver.CurrentArm;
+            Arm arm = armSolver != null ? armSolver.CurrentArm : s.Arm;
             bool left = arm == Arm.Left;
-            AppendJoint(st, left ? nuitrack.JointType.LeftShoulder : nuitrack.JointType.RightShoulder);
-            AppendJoint(st, left ? nuitrack.JointType.LeftElbow : nuitrack.JointType.RightElbow);
-            AppendJoint(st, left ? nuitrack.JointType.LeftWrist : nuitrack.JointType.RightWrist);
-            AppendJoint(st, left ? nuitrack.JointType.LeftHand : nuitrack.JointType.RightHand, trailingComma: false);
+            AppendJoint(armSolver, left ? nuitrack.JointType.LeftShoulder : nuitrack.JointType.RightShoulder);
+            AppendJoint(armSolver, left ? nuitrack.JointType.LeftElbow : nuitrack.JointType.RightElbow);
+            AppendJoint(armSolver, left ? nuitrack.JointType.LeftWrist : nuitrack.JointType.RightWrist);
+            AppendJoint(armSolver, left ? nuitrack.JointType.LeftHand : nuitrack.JointType.RightHand, trailingComma: false);
 
             writer.WriteLine(sb);
             rowCount++;
@@ -156,10 +157,10 @@ namespace Kondo.Debugging
             }
         }
 
-        void AppendJoint(UserPointerManager.PointerState st, nuitrack.JointType jt, bool trailingComma = true)
+        void AppendJoint(PointingArmSolver armSolver, nuitrack.JointType jt, bool trailingComma = true)
         {
-            JointTracker tracker = st.Solver.Trackers[jt];
-            if (tracker.IsUsable)
+            JointTracker tracker = armSolver != null && armSolver.Trackers.TryGetValue(jt, out JointTracker t) ? t : null;
+            if (tracker != null && tracker.IsUsable)
             {
                 Vector3 p = tracker.Position;
                 sb.Append(p.x.ToString("F4", Inv)).Append(',');

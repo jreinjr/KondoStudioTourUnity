@@ -96,5 +96,19 @@ namespace Kondo.Core
             uv.y = Mathf.Clamp(uv.y, -edgeMargin, 1f + edgeMargin);
             return true;
         }
+
+        /// <summary>
+        /// Orthographic projection of a room-space point onto the screen plane (its X,Y only,
+        /// no aim gain/offset), as a normalized UV — i.e. where the point sits over the
+        /// projected image when viewed head-on. Used for debug visualization (skeleton/box
+        /// overlays), not for aim. UV may fall outside 0..1.
+        /// </summary>
+        public Vector2 RoomToScreenUV(Vector3 roomPoint)
+        {
+            Vector3 c = ScreenCenter;
+            float u = 0.5f + (roomPoint.x - c.x) / Mathf.Max(screenWidthMeters, 1e-3f) * (flipX ? -1f : 1f);
+            float v = 0.5f + (roomPoint.y - c.y) / Mathf.Max(screenHeightMeters, 1e-3f);
+            return new Vector2(u, v);
+        }
     }
 }

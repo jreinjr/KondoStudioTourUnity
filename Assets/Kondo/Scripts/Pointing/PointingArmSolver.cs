@@ -11,7 +11,7 @@ namespace Kondo.Pointing
     /// state machine with enter/exit hysteresis. Plain class, one instance per user,
     /// driven by <see cref="UserPointerManager"/>.
     /// </summary>
-    public class PointingArmSolver
+    public class PointingArmSolver : IPointingSolver
     {
         static readonly nuitrack.JointType[] TrackedJoints =
         {
@@ -21,6 +21,10 @@ namespace Kondo.Pointing
         };
 
         public readonly Dictionary<nuitrack.JointType, JointTracker> Trackers = new Dictionary<nuitrack.JointType, JointTracker>();
+
+        readonly JointFilterConfig jointFilter;
+        readonly RayModelConfig rayModel;
+        readonly PointingDetectionConfig pointingDetection;
 
         Arm currentArm = Arm.Right;
         float armSwitchTimer;
@@ -44,15 +48,29 @@ namespace Kondo.Pointing
         /// <summary>Seconds since any tracked joint received fresh sensor data.</summary>
         public float FreshDataAge { get; private set; } = float.PositiveInfinity;
 
-        public PointingArmSolver()
+        /// <summary>Room-space body reference for active-user selection (the torso, or the shoulder midpoint).</summary>
+        public bool HasBody => HasTorso;
+        public Vector3 BodyPosition => TorsoPosition;
+
+        public PointingArmSolver(JointFilterConfig jointFilter, RayModelConfig rayModel, PointingDetectionConfig pointingDetection)
         {
+            this.jointFilter = jointFilter;
+            this.rayModel = rayModel;
+            this.pointingDetection = pointingDetection;
             foreach (var jt in TrackedJoints)
                 Trackers[jt] = new JointTracker();
         }
 
-        public AimSample Update(UserData user, float dt, Matrix4x4 roomFromSensor, ProjectionScreen screen,
-                                JointFilterConfig jf, RayModelConfig rm, PointingDetectionConfig pd)
+        public AimSample Update(in PointingFrame frame)
         {
+            UserData user = frame.User;
+            float dt = frame.Dt;
+            Matrix4x4 roomFromSensor = frame.RoomFromSensor;
+            ProjectionScreen screen = frame.Screen;
+            JointFilterConfig jf = jointFilter;
+            RayModelConfig rm = rayModel;
+            PointingDetectionConfig pd = pointingDetection;
+
             UserData.SkeletonData skeleton = user?.Skeleton;
             float freshest = float.PositiveInfinity;
             foreach (var jt in TrackedJoints)

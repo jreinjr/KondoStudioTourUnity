@@ -77,5 +77,25 @@ namespace Kondo.Slideshow
         [Tooltip("The mouse only counts as a hover source for this long after it last moved (kiosk mice park).")]
         [Min(0f)] public float mouseActiveSeconds = 4f;
         [Min(0f)] public float mouseMoveThresholdPixels = 2f;
+
+        [Header("Hotspot Row (bottom-row selection mode)")]
+        [Tooltip("Height of the bottom selection row, in design units (2880x2160 reference).")]
+        [Min(1f)] public float rowHeightDesign = 180f;
+        [Tooltip("Gap between the row and the bottom screen edge, in design units.")]
+        [Min(0f)] public float rowBottomMarginDesign = 40f;
+        [Tooltip("Horizontal gap between adjacent label slots, in design units.")]
+        [Min(0f)] public float rowLabelSpacingDesign = 16f;
+        [Tooltip("Optional font for the row labels (leave empty for the TMP default).")]
+        public TMP_FontAsset rowFont;
+        [Min(1f)] public float rowFontSize = 54f;
+        public Color rowLabelColor = Color.white;
+        [Tooltip("Label background at rest.")]
+        public Color rowLabelBg = new Color(0f, 0f, 0f, 0.55f);
+        [Tooltip("Label background at full dwell (the cursor brightens the label as it selects).")]
+        public Color rowLabelHoverBg = new Color(0.2f, 0.45f, 0.7f, 0.9f);
+        [Tooltip("Overall opacity of the row while visible.")]
+        [Range(0f, 1f)] public float rowIdleAlpha = 0.95f;
+        [Tooltip("Seconds the whole row fades in/out when shown or hidden (transitions/overlays).")]
+        [Min(0.01f)] public float rowFadeSeconds = 0.25f;
     }
 }

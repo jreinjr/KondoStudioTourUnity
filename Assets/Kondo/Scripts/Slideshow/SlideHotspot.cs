@@ -33,6 +33,10 @@ namespace Kondo.Slideshow
         public HotspotAction action = HotspotAction.Transition;
         public SlideTransitionTarget target = new SlideTransitionTarget();
 
+        [Header("Label")]
+        [Tooltip("Name shown in the bottom-row selection mode. Falls back to the target slide's name, then this object's name.")]
+        public string label;
+
         [Header("Overlay (ShowOverlay action)")]
         [Tooltip("Elements (focus mask, text block) revealed by this hotspot. Listed elements are excluded from the slide's enter fades automatically.")]
         public SlideFadeInElement[] overlayElements;
@@ -48,6 +52,20 @@ namespace Kondo.Slideshow
         public float Dwell01 => dwell01;
         /// <summary>True while a pointer holds this hotspot (including the hysteresis annulus).</summary>
         public bool IsHovered { get; private set; }
+
+        /// <summary>
+        /// Whether this hotspot drives its own in-image radial dwell indicator. The bottom-row
+        /// selector turns this off and shows the ring on the label instead (the in-image
+        /// highlight graphic still brightens). Reset to true on each fresh slide instance.
+        /// </summary>
+        public bool DriveIndicator { get; set; } = true;
+
+        /// <summary>Text used by the bottom-row selector: explicit label, else target slide name, else object name.</summary>
+        public string DisplayLabel =>
+            !string.IsNullOrEmpty(label) ? label
+            : target != null && target.targetSlide != null ? target.targetSlide.name
+            : name;
+
         public RectTransform Rect => (RectTransform)transform;
         public SlideTransitionTarget Target => target;
         public float Radius => overrideRadius || style == null ? radiusOverride : style.hotspotRadius;
@@ -93,7 +111,7 @@ namespace Kondo.Slideshow
             float blend = style != null ? style.dwellAlphaCurve.Evaluate(dwell01) : dwell01;
             if (group != null)
                 group.alpha = Mathf.Lerp(idle, max, blend);
-            if (indicator != null)
+            if (indicator != null && DriveIndicator)
                 indicator.SetProgress(dwell01);
 
             return dwell01 >= 1f && before < 1f;
@@ -151,12 +169,12 @@ namespace Kondo.Slideshow
             float worldRadius = Radius * transform.lossyScale.x;
             UnityEditor.Handles.color = Color.cyan;
             UnityEditor.Handles.DrawWireDisc(world, Vector3.forward, worldRadius);
-            string label = action == HotspotAction.ShowOverlay
-                ? "overlay"
+            string caption = action == HotspotAction.ShowOverlay
+                ? $"overlay: {DisplayLabel}"
                 : target != null && target.targetSlide != null
-                    ? "→ " + target.targetSlide.name
-                    : "→ (no target)";
-            UnityEditor.Handles.Label(world + Vector3.up * worldRadius, label);
+                    ? $"{DisplayLabel} → {target.targetSlide.name}"
+                    : $"{DisplayLabel} → (no target)";
+            UnityEditor.Handles.Label(world + Vector3.up * worldRadius, caption);
         }
 #endif
     }
