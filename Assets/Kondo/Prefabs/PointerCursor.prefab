@@ -112,7 +112,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 80, y: 80}
+  m_SizeDelta: {x: 800, y: 800}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!225 &8367530339215027482
 CanvasGroup:
@@ -143,13 +143,13 @@ MonoBehaviour:
   dotRect: {fileID: 7563831202890304843}
   dotImage: {fileID: 863049367156264562}
   canvasGroup: {fileID: 8367530339215027482}
-  activeRingColor: {r: 1, g: 1, b: 1, a: 0}
-  activeDotColor: {r: 1, g: 0.55, b: 0.1, a: 0}
-  activeSize: 4
-  inactiveRingColor: {r: 0.7, g: 0.7, b: 0.7, a: 0}
-  inactiveDotColor: {r: 0.9, g: 0.9, b: 0.9, a: 0}
-  inactiveSize: 4
-  userTintStrength: 0.6
+  activeRingColor: {r: 1, g: 1, b: 1, a: 0.64705884}
+  activeDotColor: {r: 1, g: 1, b: 1, a: 1}
+  activeSize: 40
+  inactiveRingColor: {r: 0.7, g: 0.7, b: 0.7, a: 0.16862746}
+  inactiveDotColor: {r: 0.9, g: 0.9, b: 0.9, a: 0.33333334}
+  inactiveSize: 50
+  userTintStrength: 0.5
   dotScale: 0.35
   styleLerpSeconds: 0.15
   enableTrail: 0

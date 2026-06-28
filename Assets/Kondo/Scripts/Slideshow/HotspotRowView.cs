@@ -170,11 +170,12 @@ namespace Kondo.Slideshow
             {
                 if (item.hotspot == null)
                     continue;
-                float dwell = item.hotspot.Dwell01;
+                // Ring tracks dwell (Select zone only); the label background tracks the highlight
+                // so it also brightens on a Hover-zone hover.
                 if (item.indicator != null)
-                    item.indicator.SetProgress(dwell);
+                    item.indicator.SetProgress(item.hotspot.Dwell01);
                 if (item.background != null)
-                    item.background.color = Color.Lerp(style.rowLabelBg, style.rowLabelHoverBg, dwell);
+                    item.background.color = Color.Lerp(style.rowLabelBg, style.rowLabelHoverBg, item.hotspot.Highlight01);
             }
         }
     }

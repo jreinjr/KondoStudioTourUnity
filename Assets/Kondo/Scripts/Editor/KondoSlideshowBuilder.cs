@@ -267,6 +267,34 @@ namespace Kondo.EditorTools
             rowView.indicatorPrefab = indicatorPrefab != null ? indicatorPrefab.GetComponent<DwellIndicator>() : null;
             controller.hotspotRow = rowView;
 
+            // Helper text: a single instructional line sitting directly above the row (same place
+            // in both selection modes — the row may be hidden, the helper stays put). On the row
+            // canvas so it shares the −2 sorting (above slides/blackout, below the cursor).
+            float rowTop = style.rowBottomMarginDesign + style.rowHeightDesign;
+            var helperGo = new GameObject("HelperText", typeof(RectTransform), typeof(CanvasGroup), typeof(SlideshowHelperText));
+            var helperRect = (RectTransform)helperGo.transform;
+            helperRect.SetParent(rowCanvas, false);
+            helperRect.anchorMin = new Vector2(0f, 0f); // bottom edge, full width
+            helperRect.anchorMax = new Vector2(1f, 0f);
+            helperRect.pivot = new Vector2(0.5f, 0f);
+            helperRect.offsetMin = new Vector2(0f, rowTop + style.helperGapDesign);
+            helperRect.offsetMax = new Vector2(0f, rowTop + style.helperGapDesign + style.helperHeightDesign);
+
+            var helperTextGo = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+            var helperTextRect = (RectTransform)helperTextGo.transform;
+            FullStretch(helperTextRect, helperRect);
+            var helperTmp = helperTextGo.GetComponent<TextMeshProUGUI>();
+            helperTmp.text = style.helperIdleText;
+            helperTmp.raycastTarget = false;
+
+            var helper = helperGo.GetComponent<SlideshowHelperText>();
+            helper.style = style;
+            helper.group = helperGo.GetComponent<CanvasGroup>();
+            helper.group.alpha = 0f;
+            helper.text = helperTmp;
+            helper.ApplyStyle();
+            controller.helperText = helper;
+
             controller.startSlidePrefab = FindFirstSlidePrefab();
             if (controller.startSlidePrefab == null)
                 Debug.LogWarning("[KondoSlideshowBuilder] No slide prefab found in " + SlidesPrefabFolder +

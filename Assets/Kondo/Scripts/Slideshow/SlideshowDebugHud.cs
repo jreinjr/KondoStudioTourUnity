@@ -1,4 +1,5 @@
 using System.Text;
+using Kondo.Pointing;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -30,6 +31,24 @@ namespace Kondo.Slideshow
 
             text.Length = 0;
             text.AppendLine($"state: {controller.State}");
+
+            UserPointerManager pm = pointers != null ? pointers.pointerManager : null;
+            if (pm != null)
+            {
+                UserPointerManager.PointerState active = null;
+                if (pm.ActiveUserId >= 0)
+                    pm.States.TryGetValue(pm.ActiveUserId, out active);
+                if (active != null && active.HasBody)
+                {
+                    float z = active.BodyPosition.z; // wall at negative Z, so smaller = closer
+                    string zone = z <= pm.maxSelectZ ? "Select" : z <= pm.maxHoverZ ? "Hover" : "None";
+                    text.AppendLine($"activeUser: {pm.ActiveUserId}  z={z:F2}m  zone={zone} (hover≤{pm.maxHoverZ:F2} select≤{pm.maxSelectZ:F2})");
+                }
+                else
+                {
+                    text.AppendLine($"activeUser: {(pm.ActiveUserId >= 0 ? pm.ActiveUserId.ToString() : "none")}  z=-  zone=None");
+                }
+            }
 
             var points = pointers != null ? pointers.ScreenPoints : null;
             if (points != null)

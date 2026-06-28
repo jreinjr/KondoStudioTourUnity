@@ -58,6 +58,12 @@ namespace Kondo.Pointing
         [Tooltip("ClosestToScreen: minimum seconds the active user keeps status before a closer challenger can steal.")]
         [Min(0f)] public float closestMinHoldSeconds = 1f;
 
+        [Tooltip("Depth zones: a user must be at room-space Z <= this (closer to the wall; wall is at negative Z) for the Hover zone. Used by the slideshow hover/select gating and the CentralClosestZone selector.")]
+        public float maxHoverZ = 2.5f;
+
+        [Tooltip("Depth zones: a user must be at room-space Z <= this (closer than MaxHoverZ) for the Select zone.")]
+        public float maxSelectZ = 1.5f;
+
         [Tooltip("A challenger must stand this much closer to the screen's center axis (meters) to steal active status from a pointing user.")]
         [Min(0f)] public float stealMarginMeters = 0.3f;
 
@@ -321,6 +327,8 @@ namespace Kondo.Pointing
         IActiveUserSelector BuildActiveSelector() => activeUserMode switch
         {
             ActiveUserMode.ClosestToScreen => new ClosestToScreenSelector(this),
+            ActiveUserMode.CentralClosestZone => new CentralClosestZoneSelector(this),
+            ActiveUserMode.SingleUser => new SingleUserSelector(),
             _ => new CentralPointingSelector(this),
         };
 

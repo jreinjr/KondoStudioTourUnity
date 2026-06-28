@@ -97,5 +97,22 @@ namespace Kondo.Slideshow
         [Range(0f, 1f)] public float rowIdleAlpha = 0.95f;
         [Tooltip("Seconds the whole row fades in/out when shown or hidden (transitions/overlays).")]
         [Min(0.01f)] public float rowFadeSeconds = 0.25f;
+
+        [Header("Helper Text")]
+        [Tooltip("Optional font for the helper text line (leave empty for the TMP default).")]
+        public TMP_FontAsset helperFont;
+        [Min(1f)] public float helperFontSize = 56f;
+        public Color helperColor = Color.white;
+        [Tooltip("Gap between the bottom of the helper text and the top of the hotspot row, in design units (2880x2160).")]
+        [Min(0f)] public float helperGapDesign = 24f;
+        [Min(1f)] public float helperHeightDesign = 90f;
+        [Tooltip("Seconds the helper text fades in/out when shown or hidden (transitions/overlays).")]
+        [Min(0.01f)] public float helperFadeSeconds = 0.25f;
+        [Tooltip("Shown when the active user is not pointing at a hotspot (or too far to interact).")]
+        public string helperIdleText = "Stand in front of your desired action.";
+        [Tooltip("Shown when the active user points at a hotspot from the Hover zone. {0} = hotspot label.")]
+        public string helperHoverFormat = "Step forward to proceed to {0}";
+        [Tooltip("Shown when the active user points at a hotspot from the Select zone. {0} = hotspot label.")]
+        public string helperSelectFormat = "Proceeding to {0}";
     }
 }

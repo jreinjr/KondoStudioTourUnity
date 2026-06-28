@@ -157,6 +157,17 @@ namespace Kondo.Slideshow
                 backgroundPlayer.Play();
         }
 
+        /// <summary>
+        /// Called as the slide is parked (deactivated) for reuse: release the background-video
+        /// decoder so parked slides don't hold media open. <see cref="ResetForEntry"/> re-opens it
+        /// on the next show. Call while the slide is still active, before SetActive(false).
+        /// </summary>
+        public void OnHidden()
+        {
+            if (HasVideoBackground && backgroundPlayer != null)
+                backgroundPlayer.CloseMedia();
+        }
+
         public void PlayEnterFades()
         {
             foreach (SlideFadeInElement element in fadeInElements)

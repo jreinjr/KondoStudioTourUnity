@@ -48,8 +48,15 @@ namespace Kondo.Slideshow
         [Min(0.05f)] public float dwellSecondsOverride = 0.8f;
 
         float dwell01;
+        float highlight01;
 
         public float Dwell01 => dwell01;
+        /// <summary>
+        /// Visual highlight level (0..1) driving the in-image alpha and the bottom-row label
+        /// background. Tracks the dwell curve in the Select zone, but snaps to 1 on a Hover-zone
+        /// hover (highlight without dwell), so the choice previews before the dwell ring appears.
+        /// </summary>
+        public float Highlight01 => highlight01;
         /// <summary>True while a pointer holds this hotspot (including the hysteresis annulus).</summary>
         public bool IsHovered { get; private set; }
 
@@ -65,6 +72,22 @@ namespace Kondo.Slideshow
             !string.IsNullOrEmpty(label) ? label
             : target != null && target.targetSlide != null ? target.targetSlide.name
             : name;
+
+        /// <summary>
+        /// <see cref="DisplayLabel"/> normalized for the helper text: lower-cased and with a
+        /// leading "to " stripped, so "To Drying Room" reads "drying room" (avoiding
+        /// "Proceeding to to drying room").
+        /// </summary>
+        public string ProceedLabel
+        {
+            get
+            {
+                string s = (DisplayLabel ?? string.Empty).Trim().ToLowerInvariant();
+                if (s.StartsWith("to "))
+                    s = s.Substring(3).TrimStart();
+                return s;
+            }
+        }
 
         public RectTransform Rect => (RectTransform)transform;
         public SlideTransitionTarget Target => target;
@@ -95,31 +118,41 @@ namespace Kondo.Slideshow
             PositionIndicator();
         }
 
-        /// <summary>Advance or drain the dwell. Returns true exactly once, on the frame dwell completes.</summary>
-        public bool UpdateHover(bool hovered, float dt)
+        /// <summary>
+        /// Advance or drain the dwell and update the highlight. Dwell only accumulates (and the
+        /// ring only shows) when <paramref name="dwellEnabled"/> — the Select zone; a Hover-zone
+        /// hover (hovered but not dwellEnabled) highlights without dwelling. Returns true exactly
+        /// once, on the frame dwell completes.
+        /// </summary>
+        public bool UpdateHover(bool hovered, bool dwellEnabled, float dt)
         {
             IsHovered = hovered;
+            bool canDwell = hovered && dwellEnabled;
             float before = dwell01;
             float rate = dt / DwellSeconds;
             float decay = style != null ? style.dwellDecayMultiplier : 2f;
-            dwell01 = hovered
+            dwell01 = canDwell
                 ? Mathf.Min(1f, dwell01 + rate)
                 : Mathf.Max(0f, dwell01 - rate * decay);
 
+            // Hover-zone hover = full highlight without dwell; otherwise track the dwell curve.
+            float blend = style != null ? style.dwellAlphaCurve.Evaluate(dwell01) : dwell01;
+            highlight01 = (hovered && !dwellEnabled) ? 1f : blend;
+
             float idle = style != null ? style.hotspotIdleAlpha : 0.25f;
             float max = style != null ? style.hotspotHoverMaxAlpha : 0.85f;
-            float blend = style != null ? style.dwellAlphaCurve.Evaluate(dwell01) : dwell01;
             if (group != null)
-                group.alpha = Mathf.Lerp(idle, max, blend);
+                group.alpha = Mathf.Lerp(idle, max, highlight01);
             if (indicator != null && DriveIndicator)
                 indicator.SetProgress(dwell01);
 
-            return dwell01 >= 1f && before < 1f;
+            return canDwell && dwell01 >= 1f && before < 1f;
         }
 
         public void ResetDwell(bool snapAlpha = true)
         {
             dwell01 = 0f;
+            highlight01 = 0f;
             IsHovered = false;
             if (snapAlpha && group != null)
                 group.alpha = style != null ? style.hotspotIdleAlpha : 0.25f;

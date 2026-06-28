@@ -17,6 +17,15 @@ namespace NuitrackSDKEditor.ErrorSolver
 
         static NuitrackChecker()
         {
+            // [Kondo] Do NOT touch the native sensor from asset-import-worker subprocesses or
+            // batch/headless processes. This [InitializeOnLoad] ctor runs on every assembly load in
+            // EVERY process Unity spawns, including the import workers created on each reimport.
+            // Nuitrack's driver only tolerates one process owning the device, so concurrent
+            // GetDeviceList() calls from workers fault in native code and crash them (transport
+            // error 10054). Only the main editor process should ping. See Kondo/NuitrackFailStartReset.
+            if (AssetDatabase.IsAssetImportWorkerProcess() || Application.isBatchMode)
+                return;
+
             PingNuitrack();
         }
 

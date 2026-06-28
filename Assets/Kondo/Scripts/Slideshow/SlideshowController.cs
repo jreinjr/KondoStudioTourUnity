@@ -1,6 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
+using Kondo.Pointing;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace Kondo.Slideshow
 {
@@ -18,6 +20,18 @@ namespace Kondo.Slideshow
     }
 
     /// <summary>
+    /// How close the active user stands, gating hotspot interaction. None = too far (no
+    /// highlight); Hover = close enough to highlight the aimed hotspot (no dwell/fire);
+    /// Select = close enough to dwell and activate. Ordered None &lt; Hover &lt; Select.
+    /// </summary>
+    public enum InteractionZone
+    {
+        None,
+        Hover,
+        Select,
+    }
+
+    /// <summary>
     /// Drives the show: hover/dwell and auto-advance while Idle, then one of two
     /// transition paths — seamless video (fade out over the pre-paused first frame,
     /// play, fade the next slide in over the held last frame) or fade-through-black.
@@ -27,7 +41,8 @@ namespace Kondo.Slideshow
     public class SlideshowController : MonoBehaviour
     {
         public SlideshowStyle style;
-        [Tooltip("Slide prefab the show starts on. The graph is reachable from here via hotspot/auto-advance targets.")]
+        [Tooltip("In-scene Slide instance the show starts on (must be a scene reference, NOT a prefab asset — " +
+                 "the graph uses in-scene hotspot/auto-advance targets). The show drives the actual scene instances.")]
         public Slide startSlidePrefab;
         public RectTransform slideCanvas;
         [Tooltip("Full-screen black overlay used by fade-through-black transitions.")]
@@ -40,6 +55,14 @@ namespace Kondo.Slideshow
         public HotspotSelectionMode hotspotMode = HotspotSelectionMode.InImage;
         [Tooltip("Bottom-row selection UI (required for the BottomRow mode).")]
         public HotspotRowView hotspotRow;
+
+        [Header("Helper Text")]
+        [Tooltip("Instructional line shown above the hotspot row (coaches the visitor to stand / step forward / proceed).")]
+        public SlideshowHelperText helperText;
+
+        // Dev fallback when no tracked user supplies depth (e.g. the Editor): arrow keys
+        // cycle this simulated zone None→Hover→Select. Ignored once a real body is present.
+        InteractionZone devZone = InteractionZone.None;
 
         Slide currentSlide;
         SlideTransitionTarget pendingTarget;
@@ -68,8 +91,10 @@ namespace Kondo.Slideshow
             lastHotspotMode = hotspotMode;
             activeSelector = ResolveSelector();
 
+            HideAllSlidesAtStartup();
+
             state = SlideshowState.FadingIn;
-            currentSlide = SpawnSlide(startSlidePrefab);
+            currentSlide = ShowSlide(startSlidePrefab);
             StartCoroutine(InitialReveal());
         }
 
@@ -124,6 +149,30 @@ namespace Kondo.Slideshow
                 return;
 
             float dt = Time.deltaTime;
+            UpdateDevZone();
+
+            // Active interaction zone: from the tracked user's depth, else the dev arrow-key
+            // override. Hover highlights the aimed hotspot; only Select dwells and fires.
+            UserPointerManager.PointerState activeBody = null;
+            UserPointerManager pm = pointers != null ? pointers.pointerManager : null;
+            if (pm != null && pm.ActiveUserId >= 0)
+                pm.States.TryGetValue(pm.ActiveUserId, out activeBody);
+            bool hasBody = activeBody != null && activeBody.HasBody;
+            InteractionZone zone;
+            if (hasBody)
+            {
+                float z = activeBody.BodyPosition.z; // wall at negative Z, so smaller = closer
+                zone = z <= pm.maxSelectZ ? InteractionZone.Select
+                     : z <= pm.maxHoverZ ? InteractionZone.Hover
+                     : InteractionZone.None;
+            }
+            else
+            {
+                zone = devZone;
+            }
+            bool highlightEnabled = zone != InteractionZone.None;
+            bool dwellEnabled = zone == InteractionZone.Select;
+
             var screenPoints = pointers != null ? pointers.ScreenPoints : null;
 
             SlideHotspot firedHotspot = null;
@@ -135,6 +184,7 @@ namespace Kondo.Slideshow
             // multiplier (hysteresis), so edge jitter doesn't reset the dwell.
             hovered.Clear();
             SlideHotspot skeletonHovered = null;
+            SlideHotspot mouseHovered = null;
             float skeletonHoverDist = 0f;
             if (screenPoints != null)
             {
@@ -161,15 +211,24 @@ namespace Kondo.Slideshow
                             skeletonHovered = nearest;
                             skeletonHoverDist = nearestDist;
                         }
+                        else
+                        {
+                            mouseHovered = nearest;
+                        }
                     }
                 }
             }
 
-            ApplyHotspotMagnetism(skeletonHovered, skeletonHoverDist);
+            // What the active interaction is aiming at (the tracked user, else the dev mouse).
+            SlideHotspot pointed = hasBody ? skeletonHovered : mouseHovered;
+
+            // Only pull the cursor toward a hotspot when hovering actually counts (Hover/Select).
+            ApplyHotspotMagnetism(highlightEnabled ? skeletonHovered : null, skeletonHoverDist);
 
             foreach (SlideHotspot hotspot in currentSlide.Hotspots)
             {
-                if (hotspot.UpdateHover(hovered.Contains(hotspot), dt) && firedHotspot == null)
+                bool h = highlightEnabled && hovered.Contains(hotspot);
+                if (hotspot.UpdateHover(h, dwellEnabled, dt) && firedHotspot == null)
                     firedHotspot = hotspot;
 
                 if (hotspot.Dwell01 > bestDwell)
@@ -180,14 +239,19 @@ namespace Kondo.Slideshow
             }
 
             activeSelector.Tick(currentSlide.Hotspots, dt);
+            UpdateHelperText(zone, pointed);
 
             bool autoFired = currentSlide.TickAutoAdvance(dt);
 
             // Pre-open the most likely transition video so its first frame sits ready
-            // under the slide before the reveal. Hover beats the auto countdown.
+            // under the slide before the reveal. A dwelling hotspot wins; otherwise a
+            // hover-zone aim warms its clip up before the visitor steps forward; otherwise
+            // the auto countdown.
             SlideTransitionTarget prepTarget = null;
             if (prepCandidate != null)
                 prepTarget = prepCandidate.action == HotspotAction.Transition ? prepCandidate.Target : null;
+            else if (pointed != null)
+                prepTarget = pointed.action == HotspotAction.Transition ? pointed.Target : null;
             else if (currentSlide.AutoAdvanceTimeRemaining <= style.autoIndicatorWindowSeconds + 1f)
                 prepTarget = currentSlide.AutoAdvanceTarget;
             if (prepTarget != null && prepTarget.kind == TransitionKind.Video &&
@@ -205,6 +269,36 @@ namespace Kondo.Slideshow
             {
                 BeginTransition(currentSlide.AutoAdvanceTarget);
             }
+        }
+
+        /// <summary>Dev fallback: arrow keys cycle the simulated zone None→Hover→Select (used only when no body supplies depth).</summary>
+        void UpdateDevZone()
+        {
+            Keyboard kb = Keyboard.current;
+            if (kb == null)
+                return;
+            if (kb.upArrowKey.wasPressedThisFrame)
+                devZone = (InteractionZone)Mathf.Min((int)devZone + 1, (int)InteractionZone.Select);
+            else if (kb.downArrowKey.wasPressedThisFrame)
+                devZone = (InteractionZone)Mathf.Max((int)devZone - 1, (int)InteractionZone.None);
+        }
+
+        /// <summary>
+        /// Coach the visitor: not aiming at a hotspot (or too far) → stand in front; aiming from
+        /// the Hover zone → step forward to proceed; aiming from the Select zone → proceeding.
+        /// </summary>
+        void UpdateHelperText(InteractionZone zone, SlideHotspot pointed)
+        {
+            if (helperText == null)
+                return;
+            string msg;
+            if (pointed == null || zone == InteractionZone.None)
+                msg = style.helperIdleText;
+            else if (zone == InteractionZone.Select)
+                msg = string.Format(style.helperSelectFormat, pointed.ProceedLabel);
+            else
+                msg = string.Format(style.helperHoverFormat, pointed.ProceedLabel);
+            helperText.SetMessage(msg);
         }
 
         /// <summary>
@@ -239,6 +333,7 @@ namespace Kondo.Slideshow
             Debug.Log($"[SlideshowController] Overlay fired: '{hotspot.name}' on '{currentSlide.name}' t={Time.time:F2}");
             state = SlideshowState.OverlayShowing;
             activeSelector?.SetVisible(false);
+            helperText?.SetVisible(false);
             Slide slide = currentSlide;
             slide.CancelAutoAdvance();
 
@@ -290,6 +385,7 @@ namespace Kondo.Slideshow
             Debug.Log($"[SlideshowController] {target.kind} transition: '{currentSlide.name}' → '{target.targetSlide.name}' t={Time.time:F2}");
             pendingTarget = target;
             activeSelector?.SetVisible(false);
+            helperText?.SetVisible(false);
             currentSlide.CancelAutoAdvance();
 
             if (target.kind == TransitionKind.Video)
@@ -319,16 +415,17 @@ namespace Kondo.Slideshow
             state = SlideshowState.FadingOut;
             yield return FadeAndWait(currentSlide.Group, 0f, style.slideFadeOutSeconds);
 
-            Destroy(currentSlide.gameObject);
+            currentSlide.OnHidden();
+            currentSlide.gameObject.SetActive(false);
             currentSlide = null;
 
             state = SlideshowState.PlayingVideo;
             bool videoDone = false;
             video.Play(() => videoDone = true);
 
-            // Build the next slide now, invisible above the playing video, so its own
+            // Show the next slide now, invisible above the playing video, so its own
             // background video (if any) has the whole transition to open and prep.
-            Slide incoming = SpawnSlide(pendingTarget.targetSlide);
+            Slide incoming = ShowSlide(pendingTarget.targetSlide);
 
             while (!videoDone)
                 yield return null;
@@ -352,11 +449,12 @@ namespace Kondo.Slideshow
 
             if (currentSlide != null)
             {
-                Destroy(currentSlide.gameObject);
+                currentSlide.OnHidden();
+                currentSlide.gameObject.SetActive(false);
                 currentSlide = null;
             }
 
-            Slide incoming = SpawnSlide(pendingTarget.targetSlide);
+            Slide incoming = ShowSlide(pendingTarget.targetSlide);
             incoming.Group.alpha = 1f; // hidden under black; enter elements stay hidden
 
             state = SlideshowState.BlackHold;
@@ -399,16 +497,45 @@ namespace Kondo.Slideshow
                 yield return null;
         }
 
-        Slide SpawnSlide(Slide prefab)
+        /// <summary>
+        /// Show an in-scene Slide instance. Slides are NOT instantiated — the show drives the
+        /// actual scene objects (their hotspot targets are in-scene references that would dangle
+        /// on a clone). Reparents under <see cref="slideCanvas"/> so the slide's own non-overriding
+        /// canvas inherits the −10 sorting (below the blackout), activates it, and resets its state.
+        /// The reparent guard makes this idempotent (a no-op once startup has parked every slide).
+        /// </summary>
+        Slide ShowSlide(Slide slide)
         {
-            Slide slide = Instantiate(prefab, slideCanvas);
             var rect = (RectTransform)slide.transform;
+            if (rect.parent != slideCanvas)
+                rect.SetParent(slideCanvas, false);
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
-            slide.ResetForEntry();
+            slide.gameObject.SetActive(true);
+            slide.ResetForEntry(); // sets alpha to 0, so the slide reactivates invisibly
             return slide;
+        }
+
+        /// <summary>
+        /// Park every Slide instance in the scene (including unreachable or pre-disabled ones)
+        /// under <see cref="slideCanvas"/> and deactivate it, so only the start slide shows once
+        /// <see cref="Start"/> reactivates it. Find-based so new slides need no wiring.
+        /// </summary>
+        void HideAllSlidesAtStartup()
+        {
+            foreach (Slide slide in FindObjectsByType<Slide>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                var rect = (RectTransform)slide.transform;
+                if (rect.parent != slideCanvas)
+                    rect.SetParent(slideCanvas, false);
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
+                slide.gameObject.SetActive(false);
+            }
         }
 
         void EnterIdle()
@@ -426,6 +553,9 @@ namespace Kondo.Slideshow
                 }
                 activeSelector.SetVisible(true);
             }
+
+            // Only coach when there's something to choose.
+            helperText?.SetVisible(currentSlide.Hotspots != null && currentSlide.Hotspots.Count > 0);
         }
     }
 }

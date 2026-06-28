@@ -71,8 +71,8 @@ MonoBehaviour:
   mirror: 0
   sensorRotation: 0
   useFileRecord: 0
-  pathToFileRecord: 
-  asyncInit: 0
+  pathToFileRecord:
+  asyncInit: 1
   initEvent:
     m_PersistentCalls:
       m_Calls: []

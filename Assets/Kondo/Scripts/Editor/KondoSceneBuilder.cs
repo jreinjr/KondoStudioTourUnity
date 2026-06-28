@@ -73,6 +73,9 @@ namespace Kondo.EditorTools
             var so = new SerializedObject(manager);
             so.FindProperty("useNuitrackAi").boolValue = true;
             so.FindProperty("maxActiveUsers").intValue = 6;
+            // Off-main-thread init: Nuitrack-recommended, reduces editor hard-crashes on (re)init
+            // and bypasses the synchronous failStart crash-guard. See NuitrackFailStartReset.
+            so.FindProperty("asyncInit").boolValue = true;
             // Floor plane (our sensor-pose source) only updates via the user tracker.
             so.FindProperty("userTrackerModuleOn").boolValue = true;
             so.FindProperty("skeletonTrackerModuleOn").boolValue = true;
@@ -173,6 +176,7 @@ namespace Kondo.EditorTools
             manager.screen = screen;
             manager.cursorCanvas = cursorCanvas;
             manager.cursorPrefab = cursorPrefab;
+            manager.activeUserMode = ActiveUserMode.SingleUser;
 
             debug.calibrator = calibrator;
             debug.screen = screen;
