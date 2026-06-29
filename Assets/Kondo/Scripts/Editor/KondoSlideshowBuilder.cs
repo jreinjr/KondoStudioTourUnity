@@ -26,6 +26,7 @@ namespace Kondo.EditorTools
         const string SlidesPrefabFolder = "Assets/Kondo/Slideshow/Prefabs/Slides";
         const string IndicatorPrefabPath = BasePrefabFolder + "/DwellIndicator.prefab";
         const string HotspotPrefabPath = BasePrefabFolder + "/Hotspot.prefab";
+        const string RowItemPrefabPath = BasePrefabFolder + "/HotspotRowItem.prefab";
         const string TextBlockPrefabPath = BasePrefabFolder + "/TextBlock.prefab";
         const string FocusMaskPrefabPath = BasePrefabFolder + "/FocusMask.prefab";
         const string SlideTemplatePrefabPath = BasePrefabFolder + "/SlideTemplate.prefab";
@@ -36,6 +37,36 @@ namespace Kondo.EditorTools
             BuildRig();
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
             Debug.Log("[KondoSlideshowBuilder] Slideshow rig built in the open scene (scene not saved).");
+        }
+
+        /// <summary>
+        /// Create the HotspotRowItem base prefab if missing and assign it to every
+        /// <see cref="HotspotRowView"/> in the open scene. Targeted repair for scenes saved
+        /// before the row switched from code-built items to a prefab — avoids a full rig rebuild.
+        /// </summary>
+        [MenuItem("Kondo/Repair Hotspot Row")]
+        public static void RepairHotspotRow()
+        {
+            SlideshowStyle style = EnsureStyle();
+            EnsureBasePrefabs(style); // creates HotspotRowItem.prefab (and the rest) if missing
+
+            var prefabGo = AssetDatabase.LoadAssetAtPath<GameObject>(RowItemPrefabPath);
+            HotspotRowItem prefab = prefabGo != null ? prefabGo.GetComponent<HotspotRowItem>() : null;
+            if (prefab == null)
+            {
+                Debug.LogError("[KondoSlideshowBuilder] Could not create or load the HotspotRowItem prefab at " + RowItemPrefabPath);
+                return;
+            }
+
+            int wired = 0;
+            foreach (HotspotRowView row in Object.FindObjectsByType<HotspotRowView>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                row.rowItemPrefab = prefab;
+                EditorUtility.SetDirty(row);
+                wired++;
+            }
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            Debug.Log($"[KondoSlideshowBuilder] HotspotRowItem prefab ensured and assigned to {wired} HotspotRowView(s) in the open scene.");
         }
 
         [MenuItem("Kondo/New Slide Prefab")]
@@ -263,8 +294,8 @@ namespace Kondo.EditorTools
             rowView.container = rowRect;
             rowView.group = rowGo.GetComponent<CanvasGroup>();
             rowView.group.alpha = 0f;
-            var indicatorPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(IndicatorPrefabPath);
-            rowView.indicatorPrefab = indicatorPrefab != null ? indicatorPrefab.GetComponent<DwellIndicator>() : null;
+            var rowItemPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(RowItemPrefabPath);
+            rowView.rowItemPrefab = rowItemPrefab != null ? rowItemPrefab.GetComponent<HotspotRowItem>() : null;
             controller.hotspotRow = rowView;
 
             // Helper text: a single instructional line sitting directly above the row (same place
@@ -318,6 +349,7 @@ namespace Kondo.EditorTools
             EnsureFolder("Assets/Kondo/Slideshow/Prefabs", "Base");
             GameObject indicator = EnsureDwellIndicatorPrefab(style);
             EnsureHotspotPrefab(style, indicator);
+            EnsureHotspotRowItemPrefab(style, indicator);
             EnsureTextBlockPrefab(style);
             EnsureFocusMaskPrefab(style);
             EnsureSlideTemplatePrefab(style);
@@ -389,6 +421,58 @@ namespace Kondo.EditorTools
             hotspot.ApplyStyle();
 
             SavePrefab(root, HotspotPrefabPath);
+        }
+
+        static GameObject EnsureHotspotRowItemPrefab(SlideshowStyle style, GameObject indicatorPrefab)
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(RowItemPrefabPath);
+            if (existing != null)
+                return existing;
+
+            float height = style.rowHeightDesign;
+
+            var root = new GameObject("HotspotRowItem", typeof(RectTransform), typeof(Image), typeof(HotspotRowItem));
+            var rootRect = (RectTransform)root.transform;
+            rootRect.sizeDelta = new Vector2(480f, height);
+            var bg = root.GetComponent<Image>();
+            bg.color = style.rowLabelBg;
+            bg.raycastTarget = false;
+
+            var textGo = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+            var textRect = (RectTransform)textGo.transform;
+            textRect.SetParent(rootRect, false);
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = new Vector2(16f, 0f);
+            textRect.offsetMax = new Vector2(-height, 0f); // leave room for the ring on the right (refitted at runtime)
+            var tmp = textGo.GetComponent<TextMeshProUGUI>();
+            tmp.text = "Label";
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = style.rowLabelColor;
+            tmp.fontSize = style.rowFontSize;
+            tmp.enableAutoSizing = false;
+            tmp.overflowMode = TextOverflowModes.Ellipsis;
+            tmp.raycastTarget = false;
+            if (style.rowFont != null)
+                tmp.font = style.rowFont;
+
+            var indicator = (GameObject)PrefabUtility.InstantiatePrefab(indicatorPrefab);
+            indicator.transform.SetParent(rootRect, false);
+            var indRect = (RectTransform)indicator.transform;
+            indRect.anchorMin = new Vector2(1f, 0.5f);
+            indRect.anchorMax = new Vector2(1f, 0.5f);
+            indRect.pivot = new Vector2(1f, 0.5f);
+            float ringSize = height * 0.6f;
+            indRect.sizeDelta = new Vector2(ringSize, ringSize);
+            indRect.anchoredPosition = new Vector2(-height * 0.2f, 0f);
+
+            var item = root.GetComponent<HotspotRowItem>();
+            item.rectTransform = rootRect;
+            item.background = bg;
+            item.label = tmp;
+            item.indicator = indicator.GetComponent<DwellIndicator>();
+
+            return SavePrefab(root, RowItemPrefabPath);
         }
 
         static void EnsureTextBlockPrefab(SlideshowStyle style)

@@ -12,12 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dc09100d02bdd6f49b25c528c09cc40a, type: 3}
   m_Name: DefaultSlideshowStyle
   m_EditorClassIdentifier: Assembly-CSharp::Kondo.Slideshow.SlideshowStyle
-  hotspotColor: {r: 1, g: 1, b: 1, a: 0.5019608}
+  hotspotColor: {r: 1, g: 1, b: 1, a: 0.27058825}
   hotspotIdleAlpha: 0.15
-  hotspotHoverMaxAlpha: 1
+  hotspotHoverMaxAlpha: 0.654
   hotspotRadius: 2500
   dwellSeconds: 4
   dwellDecayMultiplier: 2
+  hotspotExitRadiusMultiplier: 1.3
+  hotspotMagnetStrength: 0.25
   dwellAlphaCurve:
     serializedVersion: 2
     m_Curve:
@@ -54,9 +56,9 @@ MonoBehaviour:
   textBackgroundColor: {r: 0, g: 0, b: 0, a: 0.6}
   textBackgroundPadding: {x: 24, y: 16}
   maskTint: {r: 0, g: 0, b: 0, a: 0.8}
-  overlayDurationSeconds: 6
+  overlayDurationSeconds: 8
   overlayZoomScale: 1.1
-  overlayZoomSeconds: 0.6
+  overlayZoomSeconds: 1.6
   overlayHotspotsFadeSeconds: 0.3
   autoAdvanceDefaultSeconds: 10
   autoIndicatorWindowSeconds: 3
@@ -64,3 +66,22 @@ MonoBehaviour:
   videoPrepTimeoutSeconds: 3
   mouseActiveSeconds: 4
   mouseMoveThresholdPixels: 2
+  rowHeightDesign: 180
+  rowBottomMarginDesign: 40
+  rowLabelSpacingDesign: 16
+  rowFont: {fileID: 0}
+  rowFontSize: 54
+  rowLabelColor: {r: 1, g: 1, b: 1, a: 1}
+  rowLabelBg: {r: 0, g: 0, b: 0, a: 0.55}
+  rowLabelHoverBg: {r: 0.2, g: 0.45, b: 0.7, a: 0.9}
+  rowIdleAlpha: 0.95
+  rowFadeSeconds: 0.25
+  helperFont: {fileID: 0}
+  helperFontSize: 56
+  helperColor: {r: 1, g: 1, b: 1, a: 1}
+  helperGapDesign: 24
+  helperHeightDesign: 90
+  helperFadeSeconds: 0.25
+  helperIdleText: Stand in front of your desired action.
+  helperHoverFormat: Step forward to proceed to {0}
+  helperSelectFormat: Proceeding to {0}

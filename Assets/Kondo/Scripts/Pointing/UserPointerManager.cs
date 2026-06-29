@@ -145,6 +145,9 @@ namespace Kondo.Pointing
             public bool HasBody;
         }
 
+        /// <summary>Reserved id for the synthetic MouseOverride pointer (Nuitrack user ids start at 1).</summary>
+        const int MouseUserId = 0;
+
         readonly Dictionary<int, PointerState> states = new Dictionary<int, PointerState>();
         readonly Dictionary<int, UserData> presentUsers = new Dictionary<int, UserData>();
         readonly List<int> removalScratch = new List<int>();
@@ -168,16 +171,31 @@ namespace Kondo.Pointing
             float dt = Time.deltaTime;
             float now = Time.time;
 
-            if (calibrator == null || screen == null || !calibrator.IsCalibrated)
+            ApplyModeSwitches();
+
+            bool mouseOverride = pointingMode == PointingMode.MouseOverride;
+            bool calibrated = calibrator != null && calibrator.IsCalibrated;
+
+            // MouseOverride drives the cursor straight from the mouse, so it needs neither the
+            // sensor nor the floor-calibration warmup — it's interactive on the first frame.
+            // Every other mode must wait for a calibrated room frame before it can aim.
+            if (!mouseOverride && (!calibrated || screen == null))
             {
                 FadeAllCursors(dt);
                 return;
             }
 
-            ApplyModeSwitches();
+            Matrix4x4 roomFromSensor = calibrated ? calibrator.RoomFromSensor : Matrix4x4.identity;
+            float lateralOffset = screen != null ? screen.screenLateralOffsetMeters : 0f;
 
             presentUsers.Clear();
-            if (NuitrackManager.sensorsData != null && NuitrackManager.sensorsData.Count > 0)
+            if (mouseOverride)
+            {
+                // One synthetic user, independent of Nuitrack — its solver ignores the skeleton.
+                if (!states.ContainsKey(MouseUserId))
+                    states[MouseUserId] = CreateState(MouseUserId, now);
+            }
+            else if (NuitrackManager.sensorsData != null && NuitrackManager.sensorsData.Count > 0)
             {
                 foreach (UserData user in NuitrackManager.sensorsData[0].Users)
                     if (user != null)
@@ -192,8 +210,9 @@ namespace Kondo.Pointing
             foreach (var kv in states)
             {
                 PointerState st = kv.Value;
+                bool isMouseUser = mouseOverride && kv.Key == MouseUserId;
                 presentUsers.TryGetValue(kv.Key, out UserData user);
-                if (user != null)
+                if (user != null || isMouseUser)
                     st.LastSeenTime = now;
                 else if (now - st.LastSeenTime > userLostGraceSeconds)
                 {
@@ -201,7 +220,7 @@ namespace Kondo.Pointing
                     continue;
                 }
 
-                st.Sample = st.Solver.Update(new PointingFrame(user, dt, calibrator.RoomFromSensor, screen));
+                st.Sample = st.Solver.Update(new PointingFrame(user, dt, roomFromSensor, screen));
                 st.HasBody = st.Solver.HasBody;
                 st.BodyPosition = st.Solver.BodyPosition;
 
@@ -210,7 +229,7 @@ namespace Kondo.Pointing
                     st.LastPointingTime = now;
 
                 st.Centrality = st.HasBody
-                    ? Mathf.Abs(st.BodyPosition.x - screen.screenLateralOffsetMeters)
+                    ? Mathf.Abs(st.BodyPosition.x - lateralOffset)
                     : float.PositiveInfinity;
 
                 st.PendingFilterDt += dt;
@@ -288,7 +307,20 @@ namespace Kondo.Pointing
             foreach (int id in removalScratch)
                 RemoveState(id);
 
-            UpdateActiveUser(now);
+            if (mouseOverride)
+            {
+                // Exactly one (synthetic) user; make it active at once so the cursor is live
+                // immediately, bypassing the candidate-dwell the selectors impose.
+                if (ActiveUserId != MouseUserId && states.TryGetValue(MouseUserId, out PointerState mouseState))
+                {
+                    ActiveUserId = MouseUserId;
+                    mouseState.ActiveSince = now;
+                }
+            }
+            else
+            {
+                UpdateActiveUser(now);
+            }
             DriveViews(dt);
         }
 
@@ -298,16 +330,9 @@ namespace Kondo.Pointing
             if (pointingMode != lastPointingMode)
             {
                 lastPointingMode = pointingMode;
-                foreach (PointerState st in states.Values)
-                {
-                    st.Solver = BuildSolver();
-                    st.UvFilter.Reset();
-                    st.OutlierGate.Reset();
-                    st.HasLastRawUv = false;
-                    st.HasUv = false;
-                    st.PendingFilterDt = 0f;
-                    st.PendingGateDt = 0f;
-                }
+                // Rebuild from scratch on a mode change: solvers differ, and MouseOverride's
+                // synthetic user must not linger when leaving (nor stale skeletons when entering).
+                ClearAllStates();
             }
             if (activeSelector == null || activeUserMode != lastActiveUserMode)
             {
@@ -321,6 +346,7 @@ namespace Kondo.Pointing
             PointingMode.JointBoundsCenter => new JointBoundsPointingSolver(jointFilter, horizontalPointing),
             PointingMode.SpineHorizontal => new SpinePointingSolver(jointFilter, horizontalPointing),
             PointingMode.BoxCursor => new BoxCursorPointingSolver(jointFilter, boxCursor),
+            PointingMode.MouseOverride => new MouseOverridePointingSolver(),
             _ => new PointingArmSolver(jointFilter, rayModel, pointingDetection),
         };
 
@@ -377,6 +403,15 @@ namespace Kondo.Pointing
             states.Remove(id);
             if (ActiveUserId == id)
                 ActiveUserId = -1;
+        }
+
+        void ClearAllStates()
+        {
+            foreach (PointerState st in states.Values)
+                if (st.View != null)
+                    Destroy(st.View.gameObject);
+            states.Clear();
+            ActiveUserId = -1;
         }
 
         void UpdateActiveUser(float now)

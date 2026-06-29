@@ -194,6 +194,8 @@ namespace Kondo.Slideshow
                     float nearestDist = float.MaxValue;
                     foreach (SlideHotspot hotspot in currentSlide.Hotspots)
                     {
+                        if (!hotspot.IsInteractable)
+                            continue; // blank row spacers are never hovered
                         float radius = activeSelector.ZoneRadius(hotspot)
                                      * (hotspot.IsHovered ? style.hotspotExitRadiusMultiplier : 1f);
                         float dist = Vector2.Distance(screenPoints[i], activeSelector.ZonePoint(hotspot));
@@ -227,6 +229,8 @@ namespace Kondo.Slideshow
 
             foreach (SlideHotspot hotspot in currentSlide.Hotspots)
             {
+                if (!hotspot.IsInteractable)
+                    continue; // blank row spacers neither highlight nor dwell
                 bool h = highlightEnabled && hovered.Contains(hotspot);
                 if (hotspot.UpdateHover(h, dwellEnabled, dt) && firedHotspot == null)
                     firedHotspot = hotspot;
@@ -326,7 +330,7 @@ namespace Kondo.Slideshow
 
         /// <summary>
         /// In-slide overlay: hotspots fade away, the slide content zooms toward the
-        /// hotspot point while its mask/text fade on, hold, then everything reverses.
+        /// hotspot's hover point while its mask/text fade on, hold, then everything reverses.
         /// </summary>
         IEnumerator OverlayRoutine(SlideHotspot hotspot)
         {
@@ -337,13 +341,15 @@ namespace Kondo.Slideshow
             Slide slide = currentSlide;
             slide.CancelAutoAdvance();
 
-            Vector3 zoomPointWorld = hotspot.PointWorld; // capture before anything scales
+            // Zoom toward the hotspot's Hover Point (its `point`), not the bottom-row label.
+            // Captured before anything scales.
+            Vector3 zoomPointWorld = hotspot.PointWorld;
             foreach (SlideHotspot h in slide.Hotspots)
             {
                 h.ResetDwell(snapAlpha: false);
                 Fading.Fade(this, h.group, 0f, style.overlayHotspotsFadeSeconds);
             }
-            slide.ZoomTowardWorldPoint(zoomPointWorld, style.overlayZoomScale, style.overlayZoomSeconds);
+            slide.ZoomTowardWorldPoint(zoomPointWorld, hotspot.OverlayZoomScale, style.overlayZoomSeconds);
             yield return new WaitForSeconds(style.overlayHotspotsFadeSeconds);
 
             float slowestIn = 0f;

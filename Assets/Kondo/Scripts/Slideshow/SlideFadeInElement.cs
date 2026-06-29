@@ -20,29 +20,32 @@ namespace Kondo.Slideshow
         public float Delay => overrideTiming || style == null ? delaySeconds : style.elementDefaultDelay;
         public float Duration => overrideTiming || style == null ? fadeSeconds : style.elementDefaultFadeSeconds;
 
-        public void SetHidden()
+        public virtual void SetHidden()
         {
             if (group != null)
                 group.alpha = 0f;
         }
 
-        public void Play(MonoBehaviour host)
+        public virtual void Play(MonoBehaviour host)
         {
             if (group != null)
                 Fading.Fade(host, group, 1f, Duration, Delay);
         }
 
-        public void PlayOut(MonoBehaviour host)
+        public virtual void PlayOut(MonoBehaviour host)
         {
             if (group != null)
                 Fading.Fade(host, group, 0f, Duration);
         }
 
 #if UNITY_EDITOR
-        void OnValidate()
+        protected virtual void OnValidate()
         {
             if (group == null)
                 group = GetComponent<CanvasGroup>();
+            else if (group.gameObject != gameObject)
+                Debug.LogWarning($"[SlideFadeInElement] {name}: 'group' points to a CanvasGroup on a different " +
+                    "object — its fade won't show. Assign this object's own CanvasGroup.", this);
         }
 #endif
     }

@@ -398,8 +398,8 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1136872086929584542}
   - {fileID: 1641439762205216821}
+  - {fileID: 1136872086929584542}
   - {fileID: 8818609932928978515}
   m_Father: {fileID: 1825329347495240722}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -897,7 +897,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 2587417517228732876, guid: f60a8fb6ebb9a604199fe4b724f873aa, type: 3}
       propertyPath: m_Name
-      value: Hotspot_Drying
+      value: Hotspot_Painting
       objectReference: {fileID: 0}
     - target: {fileID: 2881893448296422795, guid: f60a8fb6ebb9a604199fe4b724f873aa, type: 3}
       propertyPath: m_Type
@@ -1231,12 +1231,12 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 9079644667671915884, guid: f60a8fb6ebb9a604199fe4b724f873aa, type: 3}
-      propertyPath: point.x
-      value: 0.35
-      objectReference: {fileID: 0}
-    - target: {fileID: 9079644667671915884, guid: f60a8fb6ebb9a604199fe4b724f873aa, type: 3}
       propertyPath: action
       value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 9079644667671915884, guid: f60a8fb6ebb9a604199fe4b724f873aa, type: 3}
+      propertyPath: point.x
+      value: 0.35
       objectReference: {fileID: 0}
     - target: {fileID: 9079644667671915884, guid: f60a8fb6ebb9a604199fe4b724f873aa, type: 3}
       propertyPath: overlayElements.Array.size

@@ -398,10 +398,10 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 3017797093775262506}
   - {fileID: 1523122964576630710}
   - {fileID: 4614684213594667578}
   - {fileID: 3569652470000387699}
+  - {fileID: 3017797093775262506}
   m_Father: {fileID: 1825329347495240722}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -983,16 +983,16 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 9079644667671915884, guid: f60a8fb6ebb9a604199fe4b724f873aa, type: 3}
+      propertyPath: action
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 9079644667671915884, guid: f60a8fb6ebb9a604199fe4b724f873aa, type: 3}
       propertyPath: point.x
       value: 0.56
       objectReference: {fileID: 0}
     - target: {fileID: 9079644667671915884, guid: f60a8fb6ebb9a604199fe4b724f873aa, type: 3}
       propertyPath: point.y
       value: 0.54
-      objectReference: {fileID: 0}
-    - target: {fileID: 9079644667671915884, guid: f60a8fb6ebb9a604199fe4b724f873aa, type: 3}
-      propertyPath: action
-      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 9079644667671915884, guid: f60a8fb6ebb9a604199fe4b724f873aa, type: 3}
       propertyPath: overlayElements.Array.size

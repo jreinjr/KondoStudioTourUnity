@@ -23,6 +23,13 @@ namespace Kondo.Slideshow
         public Image image;
         public DwellIndicator indicator;
 
+        [Header("Row Placeholder")]
+        [Tooltip("Make this a blank, non-interactive bottom-row spacer: it reserves a slot in the selection row " +
+                 "(keeping the other options aligned) but shows no label and can never be hovered or fired. " +
+                 "E.g. lay a 2-option slide out as 3 with the middle blank — just add a placeholder child between " +
+                 "the two real hotspots. In the in-image selection mode it is simply invisible and inert.")]
+        public bool isPlaceholder;
+
         [Header("Hover Point")]
         [Tooltip("Hover point in normalized rect coordinates (0..1, bottom-left origin). Drag the scene-view handle.")]
         public Vector2 point = new Vector2(0.5f, 0.5f);
@@ -42,6 +49,9 @@ namespace Kondo.Slideshow
         public SlideFadeInElement[] overlayElements;
         public bool overrideOverlayDuration;
         [Min(0f)] public float overlayDurationOverride = 6f;
+        [Tooltip("Override the zoom level this overlay zooms to (1 = no zoom). Otherwise uses the style's overlayZoomScale.")]
+        public bool overrideOverlayZoom;
+        [Min(1f)] public float overlayZoomScaleOverride = 1.1f;
 
         [Header("Dwell Override")]
         public bool overrideDwell;
@@ -59,6 +69,11 @@ namespace Kondo.Slideshow
         public float Highlight01 => highlight01;
         /// <summary>True while a pointer holds this hotspot (including the hysteresis annulus).</summary>
         public bool IsHovered { get; private set; }
+
+        /// <summary>True for a blank bottom-row spacer (see <see cref="isPlaceholder"/>).</summary>
+        public bool IsPlaceholder => isPlaceholder;
+        /// <summary>False for placeholders — they are never hovered, highlighted, or fired.</summary>
+        public bool IsInteractable => !isPlaceholder;
 
         /// <summary>
         /// Whether this hotspot drives its own in-image radial dwell indicator. The bottom-row
@@ -93,8 +108,12 @@ namespace Kondo.Slideshow
         public SlideTransitionTarget Target => target;
         public float Radius => overrideRadius || style == null ? radiusOverride : style.hotspotRadius;
         public float OverlayDuration => overrideOverlayDuration || style == null ? overlayDurationOverride : style.overlayDurationSeconds;
+        public float OverlayZoomScale => overrideOverlayZoom || style == null ? overlayZoomScaleOverride : style.overlayZoomScale;
 
         float DwellSeconds => overrideDwell || style == null ? dwellSecondsOverride : style.dwellSeconds;
+
+        /// <summary>Resting CanvasGroup alpha: the style's idle alpha, or 0 for an invisible placeholder.</summary>
+        float IdleAlpha => isPlaceholder ? 0f : (style != null ? style.hotspotIdleAlpha : 0.25f);
 
         /// <summary>The hover point in world space (overlay canvas world == screen pixels at scale 1).</summary>
         public Vector3 PointWorld
@@ -126,6 +145,17 @@ namespace Kondo.Slideshow
         /// </summary>
         public bool UpdateHover(bool hovered, bool dwellEnabled, float dt)
         {
+            if (isPlaceholder)
+            {
+                // Blank row spacer: inert and invisible no matter what hover bookkeeping arrives.
+                IsHovered = false;
+                dwell01 = 0f;
+                highlight01 = 0f;
+                if (group != null)
+                    group.alpha = 0f;
+                return false;
+            }
+
             IsHovered = hovered;
             bool canDwell = hovered && dwellEnabled;
             float before = dwell01;
@@ -155,17 +185,27 @@ namespace Kondo.Slideshow
             highlight01 = 0f;
             IsHovered = false;
             if (snapAlpha && group != null)
-                group.alpha = style != null ? style.hotspotIdleAlpha : 0.25f;
+                group.alpha = IdleAlpha;
             if (indicator != null)
                 indicator.HideImmediate();
         }
 
         public void ApplyStyle()
         {
+            if (isPlaceholder)
+            {
+                // Blank spacer: no graphic, no presence.
+                if (image != null)
+                    image.enabled = false;
+                if (group != null)
+                    group.alpha = 0f;
+                return;
+            }
             if (style == null)
                 return;
             if (image != null)
             {
+                image.enabled = true; // in case this was toggled back from a placeholder
                 Color c = style.hotspotColor;
                 c.a = 1f; // visibility is driven by the CanvasGroup, not the image alpha
                 image.color = c;
@@ -198,6 +238,13 @@ namespace Kondo.Slideshow
 
         void OnDrawGizmosSelected()
         {
+            if (isPlaceholder)
+            {
+                UnityEditor.Handles.color = Color.gray;
+                UnityEditor.Handles.Label(PointWorld, "row placeholder (blank slot)");
+                return;
+            }
+
             Vector3 world = PointWorld;
             float worldRadius = Radius * transform.lossyScale.x;
             UnityEditor.Handles.color = Color.cyan;

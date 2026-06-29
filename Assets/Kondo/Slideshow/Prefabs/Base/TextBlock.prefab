@@ -67,8 +67,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: Sample text
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 0e1b31f4fc02641438acff4ba6696c49, type: 2}
-  m_sharedMaterial: {fileID: -1768976230530810101, guid: 0e1b31f4fc02641438acff4ba6696c49, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: f69ead424b06a644c9ad9f8adb6cd45a, type: 2}
+  m_sharedMaterial: {fileID: -9202799652172405814, guid: f69ead424b06a644c9ad9f8adb6cd45a, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -257,7 +257,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Kondo.Slideshow.SlideFadeInElement
   style: {fileID: 11400000, guid: 81922ebc1320f67499010196d042a721, type: 2}
   group: {fileID: 7477510783797590438}
-  playOnSlideEnter: 1
   overrideTiming: 0
   delaySeconds: 0.4
   fadeSeconds: 0.6

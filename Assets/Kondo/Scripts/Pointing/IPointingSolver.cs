@@ -16,6 +16,8 @@ namespace Kondo.Pointing
         SpineHorizontal,
         [Tooltip("A screen-aspect box centered on the user's torso; the hand inside it (the one nearer the screen) is the cursor, mapped by its position in the box.")]
         BoxCursor,
+        [Tooltip("Development/override: the cursor follows the mouse exclusively, ignoring the skeleton and how close the user stands. Drives the show from the mouse.")]
+        MouseOverride,
     }
 
     /// <summary>Per-frame inputs handed to every <see cref="IPointingSolver"/>.</summary>
