@@ -17,6 +17,8 @@ namespace Kondo.Core
             FloorPlane,
             ManualOverride,
             ManualFallback,
+            /// <summary>Exact pose replayed from a Nuitrack recording; wins over floor sampling and the manual override.</summary>
+            Recording,
         }
 
         [Header("Manual Pose (used when Override Pose is on, or as a fallback)")]
@@ -76,6 +78,8 @@ namespace Kondo.Core
                         return $"MANUAL OVERRIDE  h={CurrentHeight:F2}m tilt={CurrentTiltDegrees:F1}°";
                     case PoseSource.ManualFallback:
                         return $"!! FLOOR PLANE UNAVAILABLE — manual fallback  h={CurrentHeight:F2}m tilt={CurrentTiltDegrees:F1}° !!";
+                    case PoseSource.Recording:
+                        return $"RECORDED POSE  h={CurrentHeight:F2}m tilt={CurrentTiltDegrees:F1}°";
                     default:
                         return $"Calibrating from floor… {SampleCount}/{minSamples} samples, {elapsed:F1}s";
                 }
@@ -84,6 +88,12 @@ namespace Kondo.Core
 
         void Update()
         {
+            // A replayed recording's pose is authoritative: suspend floor sampling AND the
+            // manual override (which reapplies every frame) so neither stomps it. Recalibrate()
+            // is the escape hatch back to live calibration.
+            if (Source == PoseSource.Recording)
+                return;
+
             if (overridePose)
             {
                 // Reapply every frame so the inspector values can be tuned live.
@@ -167,6 +177,17 @@ namespace Kondo.Core
             // and roll with no spurious yaw.
             Quaternion q = Quaternion.FromToRotation(n, Vector3.up);
             SetPose(new Vector3(0f, h, 0f), q, PoseSource.FloorPlane);
+        }
+
+        /// <summary>
+        /// Apply the exact sensor pose captured in a Nuitrack recording (see
+        /// Kondo.Recording.NuitrackRecordingPlayer). While <see cref="Source"/> is
+        /// <see cref="PoseSource.Recording"/>, live floor sampling and the manual override are
+        /// suspended so playback reproduces the recorded session's room frame exactly.
+        /// </summary>
+        public void ApplyRecordedPose(Vector3 position, Quaternion rotation)
+        {
+            SetPose(position, rotation, PoseSource.Recording);
         }
 
         void ApplyManual(PoseSource source)

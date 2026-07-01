@@ -317,6 +317,8 @@ namespace Kondo.EditorTools
             var manager = go.AddComponent<UserPointerManager>();
             var debug = go.AddComponent<DebugVisualizer>();
             var recorder = go.AddComponent<AimCsvRecorder>();
+            var nuitrackRecorder = go.AddComponent<Kondo.Recording.NuitrackRecorder>();
+            var recordingPlayer = go.AddComponent<Kondo.Recording.NuitrackRecordingPlayer>();
 
             screen.calibrator = calibrator;
 
@@ -334,6 +336,13 @@ namespace Kondo.EditorTools
             debug.statsText = statsText;
 
             recorder.pointerManager = manager;
+
+            nuitrackRecorder.calibrator = calibrator;
+            nuitrackRecorder.pointerManager = manager;
+
+            recordingPlayer.calibrator = calibrator;
+            recordingPlayer.playOnStart = false; // scene default is the live kiosk; enable per test session
+            manager.recordingPlayer = recordingPlayer;
 
             BuildSkeletonOverlay(debugCanvas, calibrator, screen, manager);
         }

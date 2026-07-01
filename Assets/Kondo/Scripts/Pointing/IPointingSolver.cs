@@ -22,6 +22,21 @@ namespace Kondo.Pointing
         MouseOverrideWithDistance,
     }
 
+    /// <summary>
+    /// Where <see cref="UserPointerManager"/> gets its Nuitrack users: the live sensor or a
+    /// <c>Kondo.Recording.NuitrackRecordingPlayer</c> replaying a recorded session. Orthogonal
+    /// to <see cref="PointingMode"/> — a recording drives any skeleton solver (ArmRay,
+    /// BoxCursor, …), and the mouse-override modes ignore the source exactly as they ignore
+    /// the sensor.
+    /// </summary>
+    public enum NuitrackInputSource
+    {
+        [Tooltip("Skeletons come from the live Nuitrack sensor.")]
+        LiveSensor,
+        [Tooltip("Skeletons come from a NuitrackRecordingPlayer replaying a recorded session file.")]
+        NuitrackRecording,
+    }
+
     /// <summary>Per-frame inputs handed to every <see cref="IPointingSolver"/>.</summary>
     public readonly struct PointingFrame
     {

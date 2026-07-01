@@ -30,6 +30,12 @@ namespace Kondo.Pointing
         [Tooltip("Which pointing implementation drives the cursor. Switchable live in Play mode.")]
         public PointingMode pointingMode = PointingMode.ArmRay;
 
+        [Tooltip("Where skeletons come from: the live Nuitrack sensor, or a NuitrackRecordingPlayer replaying a recorded session. Orthogonal to the pointing mode; the mouse-override modes ignore it. Switchable live in Play mode.")]
+        public NuitrackInputSource inputSource = NuitrackInputSource.LiveSensor;
+
+        [Tooltip("Replays a recorded session when Input Source = NuitrackRecording.")]
+        public Kondo.Recording.NuitrackRecordingPlayer recordingPlayer;
+
         [Tooltip("Mapping + smoothing for the horizontal-only pointing modes (JointBoundsCenter, SpineHorizontal). Needs on-site calibration.")]
         public HorizontalPointingConfig horizontalPointing = new HorizontalPointingConfig();
 
@@ -192,6 +198,7 @@ namespace Kondo.Pointing
 
         IActiveUserSelector activeSelector;
         PointingMode lastPointingMode;
+        NuitrackInputSource lastInputSource;
         ActiveUserMode lastActiveUserMode;
 
         public IReadOnlyDictionary<int, PointerState> States => states;
@@ -208,6 +215,7 @@ namespace Kondo.Pointing
         void Awake()
         {
             lastPointingMode = pointingMode;
+            lastInputSource = inputSource;
             lastActiveUserMode = activeUserMode;
             activeSelector = BuildActiveSelector();
         }
@@ -243,6 +251,17 @@ namespace Kondo.Pointing
                 // One synthetic user, independent of Nuitrack — its solver ignores the skeleton.
                 if (!states.ContainsKey(MouseUserId))
                     states[MouseUserId] = CreateState(MouseUserId, now);
+            }
+            else if (inputSource == NuitrackInputSource.NuitrackRecording)
+            {
+                // Replay: reconstructed users from the recording player stand in for the live
+                // sensor; the player (execution order -90) has already advanced this frame.
+                if (recordingPlayer != null)
+                {
+                    foreach (UserData user in recordingPlayer.Users)
+                        if (user != null)
+                            presentUsers[user.ID] = user;
+                }
             }
             else if (NuitrackManager.sensorsData != null && NuitrackManager.sensorsData.Count > 0)
             {
@@ -381,6 +400,12 @@ namespace Kondo.Pointing
                 lastPointingMode = pointingMode;
                 // Rebuild from scratch on a mode change: solvers differ, and MouseOverride's
                 // synthetic user must not linger when leaving (nor stale skeletons when entering).
+                ClearAllStates();
+            }
+            if (inputSource != lastInputSource)
+            {
+                lastInputSource = inputSource;
+                // Live and recorded skeletons must never blend in one solver/filter history.
                 ClearAllStates();
             }
             if (activeSelector == null || activeUserMode != lastActiveUserMode)

@@ -79,9 +79,14 @@ namespace Kondo.Debugging
             if (hotkeyEnabled && Keyboard.current != null && Keyboard.current.f2Key.wasPressedThisFrame)
                 show = !show;
 #endif
+            // Recording playback: draw the reconstructed skeletons from the player instead of
+            // the live sensor, so replayed sessions are inspectable the same way.
+            bool playback = pointerManager != null
+                            && pointerManager.inputSource == NuitrackInputSource.NuitrackRecording
+                            && pointerManager.recordingPlayer != null;
             bool active = show && container != null && screen != null
                           && calibrator != null && calibrator.IsCalibrated
-                          && NuitrackManager.sensorsData != null && NuitrackManager.sensorsData.Count > 0;
+                          && (playback || (NuitrackManager.sensorsData != null && NuitrackManager.sensorsData.Count > 0));
             if (!active)
             {
                 if (used > 0)
@@ -95,7 +100,10 @@ namespace Kondo.Debugging
             Vector2 size = container.rect.size;
             BoxCursorConfig boxCfg = pointerManager != null ? pointerManager.boxCursor : null;
 
-            foreach (UserData user in NuitrackManager.sensorsData[0].Users)
+            IEnumerable<UserData> userSource = playback
+                ? pointerManager.recordingPlayer.Users
+                : (IEnumerable<UserData>)NuitrackManager.sensorsData[0].Users;
+            foreach (UserData user in userSource)
             {
                 if (user == null || user.Skeleton == null)
                     continue;
