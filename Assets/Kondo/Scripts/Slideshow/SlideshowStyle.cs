@@ -4,6 +4,19 @@ using UnityEngine;
 namespace Kondo.Slideshow
 {
     /// <summary>
+    /// How navigation is guarded right after a slide becomes interactive, so a cursor parked
+    /// over the same screen spot doesn't immediately re-trigger the next slide. None = off;
+    /// RequireReentry = a hotspot can't dwell until the cursor has left its hover zone once;
+    /// TimedDebounce = dwelling is suppressed for a fixed window after the slide loads.
+    /// </summary>
+    public enum NavigationGuardMode
+    {
+        None,
+        RequireReentry,
+        TimedDebounce,
+    }
+
+    /// <summary>
     /// Globally shared look and timing for the slideshow. One asset restyles the
     /// whole show; prefab components apply it in OnValidate (editor preview) and
     /// Awake (runtime source of truth).
@@ -27,6 +40,14 @@ namespace Kondo.Slideshow
         [Range(0f, 1f)] public float hotspotMagnetStrength = 0.25f;
         [Tooltip("Maps dwell progress (0..1) to the hotspot's idle-to-hover alpha blend.")]
         public AnimationCurve dwellAlphaCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+
+        [Header("Navigation Guard")]
+        [Tooltip("Prevents a cursor parked over the same spot from immediately re-triggering the next slide. " +
+                 "RequireReentry: a hotspot can't dwell until the cursor has left its hover zone once since the slide loaded. " +
+                 "TimedDebounce: dwelling is suppressed for the window below after the slide becomes interactive.")]
+        public NavigationGuardMode navigationGuard = NavigationGuardMode.TimedDebounce;
+        [Tooltip("TimedDebounce only: seconds after a slide becomes interactive during which no hotspot can dwell/fire.")]
+        [Min(0f)] public float navigationDebounceSeconds = 1f;
 
         [Header("Dwell Indicator")]
         public Color indicatorColor = Color.white;

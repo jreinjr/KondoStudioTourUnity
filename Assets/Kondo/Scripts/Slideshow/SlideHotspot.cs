@@ -59,6 +59,10 @@ namespace Kondo.Slideshow
 
         float dwell01;
         float highlight01;
+        // RequireReentry guard: stays false until the cursor is seen off this hotspot at least
+        // once since the last ResetDwell (i.e. since the slide loaded / an overlay closed), so a
+        // cursor parked over the spot from the previous slide can't immediately re-dwell.
+        bool sawReleaseSinceReset;
 
         public float Dwell01 => dwell01;
         /// <summary>
@@ -140,10 +144,12 @@ namespace Kondo.Slideshow
         /// <summary>
         /// Advance or drain the dwell and update the highlight. Dwell only accumulates (and the
         /// ring only shows) when <paramref name="dwellEnabled"/> — the Select zone; a Hover-zone
-        /// hover (hovered but not dwellEnabled) highlights without dwelling. Returns true exactly
-        /// once, on the frame dwell completes.
+        /// hover (hovered but not dwellEnabled) highlights without dwelling. When
+        /// <paramref name="requireRelease"/> (the RequireReentry guard), dwell is also held off
+        /// until the cursor has been seen off this hotspot at least once since the last reset.
+        /// Returns true exactly once, on the frame dwell completes.
         /// </summary>
-        public bool UpdateHover(bool hovered, bool dwellEnabled, float dt)
+        public bool UpdateHover(bool hovered, bool dwellEnabled, bool requireRelease, float dt)
         {
             if (isPlaceholder)
             {
@@ -156,8 +162,11 @@ namespace Kondo.Slideshow
                 return false;
             }
 
+            if (!hovered)
+                sawReleaseSinceReset = true; // an off-hotspot frame satisfies the re-entry guard
+
             IsHovered = hovered;
-            bool canDwell = hovered && dwellEnabled;
+            bool canDwell = hovered && dwellEnabled && (!requireRelease || sawReleaseSinceReset);
             float before = dwell01;
             float rate = dt / DwellSeconds;
             float decay = style != null ? style.dwellDecayMultiplier : 2f;
@@ -184,6 +193,7 @@ namespace Kondo.Slideshow
             dwell01 = 0f;
             highlight01 = 0f;
             IsHovered = false;
+            sawReleaseSinceReset = false; // re-arm the re-entry guard for the fresh slide/overlay
             if (snapAlpha && group != null)
                 group.alpha = IdleAlpha;
             if (indicator != null)

@@ -71,7 +71,7 @@ namespace Kondo.Pointing
                 HasBody = false;
             }
 
-            return horizontal.ToHorizontalSample(HasBody, BodyPosition);
+            return horizontal.ToHorizontalSample(HasBody, BodyPosition, frame.HoverZ, frame.SelectZ);
         }
     }
 }

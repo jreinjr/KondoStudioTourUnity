@@ -32,8 +32,19 @@ namespace Kondo.UI
         [Tooltip("How strongly the per-user palette color tints the inactive cursor (0 = plain grey, 1 = full user color).")]
         [Range(0f, 1f)] public float userTintStrength = 0.6f;
 
-        [Tooltip("Inner dot size as a fraction of the ring size.")]
-        [Range(0.05f, 1f)] public float dotScale = 0.35f;
+        [Header("Overall Size Growth (driven by depth between the hover and select thresholds)")]
+        [Tooltip("Overall cursor-size multiplier when the user is at the hover threshold (far).")]
+        [Min(0.01f)] public float sizeScaleAtHover = 1f;
+
+        [Tooltip("Overall cursor-size multiplier when the user is at the select threshold (close).")]
+        [Min(0.01f)] public float sizeScaleAtSelect = 1f;
+
+        [Header("Inner Dot Growth (driven by depth between the hover and select thresholds)")]
+        [Tooltip("Inner dot size as a fraction of the ring when the user is at the hover threshold (far). 0 = a point.")]
+        [Range(0f, 1f)] public float dotScaleAtHover = 0f;
+
+        [Tooltip("Inner dot size as a fraction of the ring when the user is at the select threshold (close). 1 = fills the ring.")]
+        [Range(0f, 1f)] public float dotScaleAtSelect = 1f;
 
         [Tooltip("Seconds to blend between active and inactive styles.")]
         [Min(0.01f)] public float styleLerpSeconds = 0.15f;
@@ -59,6 +70,8 @@ namespace Kondo.UI
         RectTransform canvasRect;
         bool isActive;
         float styleBlend;
+        /// <summary>0 at the hover threshold (far), 1 at the select threshold (close); drives the inner dot's growth.</summary>
+        float proximity;
         Color userTint = Color.white;
         float trailTimer;
         readonly List<TrailGhost> ghosts = new List<TrailGhost>();
@@ -91,6 +104,9 @@ namespace Kondo.UI
 
         public void SetUserTint(Color tint) => userTint = tint;
 
+        /// <summary>Depth progress 0..1: 0 at the hover threshold (far), 1 at the select threshold (close). Grows the inner dot.</summary>
+        public void SetProximity(float t01) => proximity = Mathf.Clamp01(t01);
+
         void Update()
         {
             float target = isActive ? 1f : 0f;
@@ -112,10 +128,15 @@ namespace Kondo.UI
                 dotImage.color = Color.Lerp(tintedDot, activeDotColor, styleBlend);
 
             float size = Mathf.Lerp(inactiveSize, activeSize, styleBlend);
+            size *= Mathf.Lerp(sizeScaleAtHover, sizeScaleAtSelect, proximity);
             if (ringRect != null)
                 ringRect.sizeDelta = new Vector2(size, size);
             if (dotRect != null)
-                dotRect.sizeDelta = new Vector2(size * dotScale, size * dotScale);
+            {
+                float dotFraction = Mathf.Lerp(dotScaleAtHover, dotScaleAtSelect, proximity);
+                float dotSize = size * dotFraction;
+                dotRect.sizeDelta = new Vector2(dotSize, dotSize);
+            }
         }
 
         void UpdateTrail()

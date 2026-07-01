@@ -73,7 +73,7 @@ namespace Kondo.Pointing
                 HasBody = false;
                 extentFilter.Reset();
                 hasLastRawExtent = false;
-                return horizontal.ToHorizontalSample(false, BodyPosition);
+                return horizontal.ToHorizontalSample(false, BodyPosition, frame.HoverZ, frame.SelectZ);
             }
 
             var rawExtent = new Vector2(minX, maxX);
@@ -97,7 +97,7 @@ namespace Kondo.Pointing
             BodyPosition = new Vector3(centerX, y, z);
             HasBody = true;
 
-            return horizontal.ToHorizontalSample(true, BodyPosition);
+            return horizontal.ToHorizontalSample(true, BodyPosition, frame.HoverZ, frame.SelectZ);
         }
     }
 }

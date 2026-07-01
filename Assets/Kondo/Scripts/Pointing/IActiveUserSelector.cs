@@ -14,6 +14,8 @@ namespace Kondo.Pointing
         CentralClosestZone,
         [Tooltip("Ignores all active-user logic; locks the cursor to the first detected skeleton. Single-visitor / diagnostic mode.")]
         SingleUser,
+        [Tooltip("First-come, first-served: the earliest-seen user within hover distance owns the cursor and keeps it while they stay within hover distance; when they leave it, the next-earliest user within hover distance takes over.")]
+        FirstSeenInHover,
     }
 
     /// <summary>

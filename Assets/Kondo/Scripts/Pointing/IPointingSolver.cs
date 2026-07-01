@@ -27,13 +27,19 @@ namespace Kondo.Pointing
         public readonly float Dt;
         public readonly Matrix4x4 RoomFromSensor;
         public readonly ProjectionScreen Screen;
+        /// <summary>Room-space Z (meters) of the Hover-zone boundary (farther from the wall). The horizontal cursor sits on its hover line at or beyond this distance.</summary>
+        public readonly float HoverZ;
+        /// <summary>Room-space Z (meters) of the Select-zone boundary (closer to the wall). The horizontal cursor reaches its select line at or within this distance.</summary>
+        public readonly float SelectZ;
 
-        public PointingFrame(UserData user, float dt, Matrix4x4 roomFromSensor, ProjectionScreen screen)
+        public PointingFrame(UserData user, float dt, Matrix4x4 roomFromSensor, ProjectionScreen screen, float hoverZ, float selectZ)
         {
             User = user;
             Dt = dt;
             RoomFromSensor = roomFromSensor;
             Screen = screen;
+            HoverZ = hoverZ;
+            SelectZ = selectZ;
         }
     }
 
@@ -55,8 +61,10 @@ namespace Kondo.Pointing
     /// Maps a user's lateral room position to a horizontal cursor for the horizontal-only
     /// pointing modes (<see cref="PointingMode.JointBoundsCenter"/>, <see cref="PointingMode.SpineHorizontal"/>).
     /// These don't aim at the wall — they answer "where is the user standing", so the mapping
-    /// is a simple room-X range to screen U, and the cursor rides at a fixed vertical position
-    /// (aligned with the bottom-row selection band). Requires on-site calibration.
+    /// is a simple room-X range to screen U. The cursor's vertical position rises with distance:
+    /// it rides the <see cref="hoverLineV01"/> (low) when the user is far and rises toward the
+    /// <see cref="selectLineV01"/> (slightly higher) as they approach the wall, so closing in
+    /// nudges the cursor up. Requires on-site calibration.
     /// </summary>
     [Serializable]
     public class HorizontalPointingConfig
@@ -70,18 +78,23 @@ namespace Kondo.Pointing
         [Tooltip("Mirror the horizontal axis (match the projection's flip so moving right on the floor moves the cursor right on the wall).")]
         public bool flipX = true;
 
-        [Tooltip("Fixed vertical screen position the horizontal cursor rides at (0 = bottom, 1 = top). Align with the hotspot row.")]
-        [Range(0f, 1f)] public float cursorV01 = 0.07f;
+        [Tooltip("Vertical screen line (0 = bottom, 1 = top) the cursor rides when the user is far (at/beyond the Hover-zone distance). Near the bottom of the screen.")]
+        [Range(0f, 1f)] public float hoverLineV01 = 0.03f;
+
+        [Tooltip("Vertical screen line (0 = bottom, 1 = top) the cursor rises to when the user is close (at/within the Select-zone distance). Slightly higher than the hover line.")]
+        [Range(0f, 1f)] public float selectLineV01 = 0.10f;
 
         [Tooltip("One Euro filter applied to the bounding-box extents (JointBoundsCenter only) so they survive joints popping in and out.")]
         public OneEuroParams extentFilter = new OneEuroParams(1.0f, 0.3f, 1.0f);
 
         /// <summary>
-        /// Build the horizontal-only aim sample for a given room-space body X. Shared by the
-        /// spine and joint-bounds solvers. The cursor sits at <see cref="cursorV01"/> and only
-        /// its U varies; OnScreen reflects whether the user is within the mapped X range.
+        /// Build the horizontal-only aim sample for a given room-space body position. Shared by
+        /// the spine and joint-bounds solvers. U comes from the body's lateral X; V interpolates
+        /// from <see cref="hoverLineV01"/> to <see cref="selectLineV01"/> as the body's Z closes
+        /// from <paramref name="hoverZ"/> (far) to <paramref name="selectZ"/> (near), so the
+        /// cursor rises as the user approaches. OnScreen reflects the mapped X range.
         /// </summary>
-        public AimSample ToHorizontalSample(bool hasBody, Vector3 bodyRoom)
+        public AimSample ToHorizontalSample(bool hasBody, Vector3 bodyRoom, float hoverZ, float selectZ)
         {
             if (!hasBody)
                 return new AimSample { HasRay = false, IsPointing = false, HasScreenUV = false };
@@ -93,13 +106,19 @@ namespace Kondo.Pointing
             if (flipX)
                 u = 1f - u;
 
+            // Rise from the hover line (at hoverZ, far) to the select line (at selectZ, near) as
+            // the user closes in. Wall is at negative Z, so closer means smaller Z.
+            float zSpan = hoverZ - selectZ;
+            float rise = Mathf.Abs(zSpan) < 1e-4f ? 1f : Mathf.Clamp01((hoverZ - bodyRoom.z) / zSpan);
+            float v = Mathf.Lerp(hoverLineV01, selectLineV01, rise);
+
             return new AimSample
             {
                 HasRay = false,
                 IsPointing = true,
                 Quality = 1f,
                 HasScreenUV = true,
-                ScreenUV = new Vector2(u, Mathf.Clamp01(cursorV01)),
+                ScreenUV = new Vector2(u, Mathf.Clamp01(v)),
                 OnScreen = onScreen,
             };
         }

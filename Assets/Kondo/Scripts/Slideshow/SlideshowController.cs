@@ -67,6 +67,7 @@ namespace Kondo.Slideshow
         Slide currentSlide;
         SlideTransitionTarget pendingTarget;
         SlideshowState state;
+        float idleEnteredTime; // when the current slide became interactive (TimedDebounce guard)
         readonly HashSet<SlideHotspot> hovered = new HashSet<SlideHotspot>();
 
         readonly InImageHotspotSelector inImageSelector = new InImageHotspotSelector();
@@ -173,6 +174,15 @@ namespace Kondo.Slideshow
             bool highlightEnabled = zone != InteractionZone.None;
             bool dwellEnabled = zone == InteractionZone.Select;
 
+            // Navigation guard: stop a cursor parked over the same spot from re-triggering the
+            // freshly loaded slide. TimedDebounce holds dwell off for a window after the slide
+            // became interactive; RequireReentry (handled per-hotspot in UpdateHover) holds dwell
+            // off until the cursor has left the hotspot's zone once.
+            bool requireRelease = style.navigationGuard == NavigationGuardMode.RequireReentry;
+            if (style.navigationGuard == NavigationGuardMode.TimedDebounce &&
+                Time.time - idleEnteredTime < style.navigationDebounceSeconds)
+                dwellEnabled = false;
+
             var screenPoints = pointers != null ? pointers.ScreenPoints : null;
 
             SlideHotspot firedHotspot = null;
@@ -186,6 +196,11 @@ namespace Kondo.Slideshow
             SlideHotspot skeletonHovered = null;
             SlideHotspot mouseHovered = null;
             float skeletonHoverDist = 0f;
+            // In horizontal-only pointing the cursor's vertical position encodes depth (it rises as
+            // the user approaches), so it never vertically coincides with a hotspot until it has
+            // risen to the Select line. Match hover on horizontal alignment alone so a hotspot
+            // highlights the moment the user is laterally lined up and starts to approach.
+            bool horizontalHover = pm != null && pm.IsHorizontalPointing;
             if (screenPoints != null)
             {
                 for (int i = 0; i < screenPoints.Count; i++)
@@ -198,7 +213,10 @@ namespace Kondo.Slideshow
                             continue; // blank row spacers are never hovered
                         float radius = activeSelector.ZoneRadius(hotspot)
                                      * (hotspot.IsHovered ? style.hotspotExitRadiusMultiplier : 1f);
-                        float dist = Vector2.Distance(screenPoints[i], activeSelector.ZonePoint(hotspot));
+                        Vector2 zonePoint = activeSelector.ZonePoint(hotspot);
+                        float dist = horizontalHover
+                            ? Mathf.Abs(screenPoints[i].x - zonePoint.x)
+                            : Vector2.Distance(screenPoints[i], zonePoint);
                         if (dist <= radius && dist < nearestDist)
                         {
                             nearestDist = dist;
@@ -232,7 +250,7 @@ namespace Kondo.Slideshow
                 if (!hotspot.IsInteractable)
                     continue; // blank row spacers neither highlight nor dwell
                 bool h = highlightEnabled && hovered.Contains(hotspot);
-                if (hotspot.UpdateHover(h, dwellEnabled, dt) && firedHotspot == null)
+                if (hotspot.UpdateHover(h, dwellEnabled, requireRelease, dt) && firedHotspot == null)
                     firedHotspot = hotspot;
 
                 if (hotspot.Dwell01 > bestDwell)
@@ -360,7 +378,27 @@ namespace Kondo.Slideshow
                 element.Play(this);
                 slowestIn = Mathf.Max(slowestIn, element.Delay + element.Duration);
             }
-            yield return new WaitForSeconds(slowestIn + hotspot.OverlayDuration);
+
+            // Let the zoom-in and element fade-ins fully settle before the hold becomes
+            // interruptible. Breaking out mid-fade-in would leave each element's still-pending
+            // Play() fade coroutine (possibly still in its Delay) running after PlayOut() below,
+            // stranding the element at full alpha — and the zoom-in is finished by now too, so
+            // an early ZoomTo(1f) reverses cleanly from a settled scale.
+            if (slowestIn > 0f)
+                yield return new WaitForSeconds(slowestIn);
+
+            // Hold the overlay open, but end early if the visitor steps back out of the highlight
+            // zone (e.g. walks away) so the next person isn't stuck waiting out the full duration.
+            // The reverse below still plays in full, so it closes gracefully either way.
+            for (float held = 0f; held < hotspot.OverlayDuration; held += Time.deltaTime)
+            {
+                if (!ActiveUserInHighlightZone())
+                {
+                    Debug.Log($"[SlideshowController] Overlay '{hotspot.name}' ended early: active user left the highlight zone t={Time.time:F2}");
+                    break;
+                }
+                yield return null;
+            }
 
             float slowestOut = 0f;
             foreach (SlideFadeInElement element in hotspot.overlayElements)
@@ -378,6 +416,23 @@ namespace Kondo.Slideshow
             yield return new WaitForSeconds(style.overlayHotspotsFadeSeconds);
 
             EnterIdle();
+        }
+
+        /// <summary>
+        /// True while the active tracked user is still within (or closer than) the highlight zone
+        /// — the Hover/Select depth band where hotspots light up. Returns true when there is no
+        /// tracked body driving the cursor (dev mouse / no sensor), since a mouse can't "step
+        /// back" and overlays shouldn't self-cancel without a depth source. Mirrors the zone test
+        /// in <see cref="Update"/> (wall at negative Z, so smaller z is closer than maxHoverZ).
+        /// </summary>
+        bool ActiveUserInHighlightZone()
+        {
+            UserPointerManager pm = pointers != null ? pointers.pointerManager : null;
+            if (pm == null || pm.ActiveUserId < 0)
+                return true;
+            if (!pm.States.TryGetValue(pm.ActiveUserId, out var st) || !st.HasBody)
+                return true;
+            return st.BodyPosition.z <= pm.maxHoverZ;
         }
 
         void BeginTransition(SlideTransitionTarget target)
@@ -548,6 +603,7 @@ namespace Kondo.Slideshow
         {
             pendingTarget = null;
             state = SlideshowState.Idle;
+            idleEnteredTime = Time.time; // start the TimedDebounce window for the new slide
             currentSlide.BeginAutoAdvance();
 
             if (activeSelector != null)

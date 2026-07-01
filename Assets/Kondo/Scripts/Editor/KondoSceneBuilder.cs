@@ -71,7 +71,10 @@ namespace Kondo.EditorTools
             var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
             var manager = instance.GetComponent<NuitrackManager>();
             var so = new SerializedObject(manager);
-            so.FindProperty("useNuitrackAi").boolValue = true;
+            // AI (CNN) skeleton tracking disabled: its async pose-estimation thread (libcnn-hpe
+            // MeanShiftCubicClustersFinder) was hard-crashing the editor/player. The classic
+            // skeletonizer covers our arm-pointing needs without that native code path.
+            so.FindProperty("useNuitrackAi").boolValue = false;
             so.FindProperty("maxActiveUsers").intValue = 6;
             // Off-main-thread init: Nuitrack-recommended, reduces editor hard-crashes on (re)init
             // and bypasses the synchronous failStart crash-guard. See NuitrackFailStartReset.

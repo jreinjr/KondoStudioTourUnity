@@ -48,7 +48,7 @@ CanvasGroup:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2587417517228732876}
   m_Enabled: 1
-  m_Alpha: 0.15
+  m_Alpha: 0
   m_Interactable: 1
   m_BlocksRaycasts: 1
   m_IgnoreParentGroups: 0
@@ -106,6 +106,7 @@ MonoBehaviour:
   group: {fileID: 7250181989645196181}
   image: {fileID: 2881893448296422795}
   indicator: {fileID: 3800686796414004520}
+  isPlaceholder: 0
   point: {x: 0.5, y: 0.5}
   overrideRadius: 0
   radiusOverride: 150
@@ -116,9 +117,12 @@ MonoBehaviour:
     transitionVideoPath: 
     overrideFadeDuration: 0
     fadeThroughBlackSecondsOverride: 1
+  label: 
   overlayElements: []
   overrideOverlayDuration: 0
   overlayDurationOverride: 6
+  overrideOverlayZoom: 0
+  overlayZoomScaleOverride: 1.1
   overrideDwell: 0
   dwellSecondsOverride: 0.8
 --- !u!1001 &2088461431905400907

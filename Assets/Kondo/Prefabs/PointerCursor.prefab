@@ -35,7 +35,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 28, y: 28}
+  m_SizeDelta: {x: 80, y: 80}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8224946669744606713
 CanvasRenderer:
@@ -145,12 +145,15 @@ MonoBehaviour:
   canvasGroup: {fileID: 8367530339215027482}
   activeRingColor: {r: 1, g: 1, b: 1, a: 0.64705884}
   activeDotColor: {r: 1, g: 1, b: 1, a: 1}
-  activeSize: 40
+  activeSize: 160
   inactiveRingColor: {r: 0.7, g: 0.7, b: 0.7, a: 0.16862746}
   inactiveDotColor: {r: 0.9, g: 0.9, b: 0.9, a: 0.33333334}
   inactiveSize: 50
   userTintStrength: 0.5
-  dotScale: 0.35
+  sizeScaleAtHover: 0.25
+  sizeScaleAtSelect: 1
+  dotScaleAtHover: 0
+  dotScaleAtSelect: 1
   styleLerpSeconds: 0.15
   enableTrail: 0
   trailInterval: 0.03
@@ -192,7 +195,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 80, y: 80}
+  m_SizeDelta: {x: 400, y: 400}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &5777604856409704500
 CanvasRenderer:

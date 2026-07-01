@@ -27,6 +27,15 @@ namespace Kondo.Pointing
         [Tooltip("Mapping + smoothing for the horizontal-only pointing modes (JointBoundsCenter, SpineHorizontal). Needs on-site calibration.")]
         public HorizontalPointingConfig horizontalPointing = new HorizontalPointingConfig();
 
+        /// <summary>
+        /// True for the horizontal-only modes where the cursor's vertical position encodes the
+        /// user's depth (rising as they approach) rather than aim. Hotspot hover should match on
+        /// horizontal alignment only in these modes — the cursor never vertically coincides with a
+        /// hotspot until it has risen all the way to the Select line.
+        /// </summary>
+        public bool IsHorizontalPointing =>
+            pointingMode == PointingMode.SpineHorizontal || pointingMode == PointingMode.JointBoundsCenter;
+
         [Tooltip("Interaction box for the BoxCursor pointing mode (also visualized by the skeleton debug overlay).")]
         public BoxCursorConfig boxCursor = new BoxCursorConfig();
 
@@ -63,6 +72,9 @@ namespace Kondo.Pointing
 
         [Tooltip("Depth zones: a user must be at room-space Z <= this (closer than MaxHoverZ) for the Select zone.")]
         public float maxSelectZ = 1.5f;
+
+        [Tooltip("FirstSeenInHover: depth hysteresis (meters). The active holder keeps the cursor until they step past MaxHoverZ + this margin, even though acquisition still requires being within MaxHoverZ. Prevents boundary flicker from sensor jitter.")]
+        [Min(0f)] public float hoverExitMarginMeters = 0.2f;
 
         [Tooltip("A challenger must stand this much closer to the screen's center axis (meters) to steal active status from a pointing user.")]
         [Min(0f)] public float stealMarginMeters = 0.3f;
@@ -143,6 +155,8 @@ namespace Kondo.Pointing
             /// <summary>Room-space body reference from the pointing solver (X drives centrality, Z drives distance-to-screen).</summary>
             public Vector3 BodyPosition;
             public bool HasBody;
+            /// <summary>Monotonic arrival order stamped once on creation; lower = seen earlier. Survives Nuitrack id recycling, unlike UserId. Used by the FirstSeenInHover selector.</summary>
+            public long FirstSeenArrival;
         }
 
         /// <summary>Reserved id for the synthetic MouseOverride pointer (Nuitrack user ids start at 1).</summary>
@@ -151,6 +165,7 @@ namespace Kondo.Pointing
         readonly Dictionary<int, PointerState> states = new Dictionary<int, PointerState>();
         readonly Dictionary<int, UserData> presentUsers = new Dictionary<int, UserData>();
         readonly List<int> removalScratch = new List<int>();
+        long nextArrival = 0;
 
         IActiveUserSelector activeSelector;
         PointingMode lastPointingMode;
@@ -220,7 +235,7 @@ namespace Kondo.Pointing
                     continue;
                 }
 
-                st.Sample = st.Solver.Update(new PointingFrame(user, dt, roomFromSensor, screen));
+                st.Sample = st.Solver.Update(new PointingFrame(user, dt, roomFromSensor, screen, maxHoverZ, maxSelectZ));
                 st.HasBody = st.Solver.HasBody;
                 st.BodyPosition = st.Solver.BodyPosition;
 
@@ -355,6 +370,7 @@ namespace Kondo.Pointing
             ActiveUserMode.ClosestToScreen => new ClosestToScreenSelector(this),
             ActiveUserMode.CentralClosestZone => new CentralClosestZoneSelector(this),
             ActiveUserMode.SingleUser => new SingleUserSelector(),
+            ActiveUserMode.FirstSeenInHover => new FirstSeenInHoverSelector(this),
             _ => new CentralPointingSelector(this),
         };
 
@@ -379,7 +395,7 @@ namespace Kondo.Pointing
 
         PointerState CreateState(int id, float now)
         {
-            var st = new PointerState { UserId = id, LastSeenTime = now };
+            var st = new PointerState { UserId = id, LastSeenTime = now, FirstSeenArrival = nextArrival++ };
             st.Solver = BuildSolver();
             if (cursorPrefab != null && cursorCanvas != null)
             {
@@ -454,6 +470,7 @@ namespace Kondo.Pointing
 
                 st.View.SetActive(isActive);
                 st.View.SetAlpha(st.Alpha);
+                st.View.SetProximity(DepthProximity01(st));
                 if (st.HasUv)
                 {
                     Vector2 shown = st.DisplayUv;
@@ -464,6 +481,21 @@ namespace Kondo.Pointing
                     st.View.SetUV(shown);
                 }
             }
+        }
+
+        /// <summary>
+        /// 0..1 depth progress for the inner-dot growth: 0 at (or beyond) the Hover-zone distance
+        /// (far), 1 at (or within) the Select-zone distance (close). No body (e.g. MouseOverride)
+        /// reports fully close so the dev cursor shows a full dot.
+        /// </summary>
+        float DepthProximity01(PointerState st)
+        {
+            if (!st.HasBody)
+                return 1f;
+            float zSpan = maxHoverZ - maxSelectZ;
+            if (Mathf.Abs(zSpan) < 1e-4f)
+                return 1f;
+            return Mathf.Clamp01((maxHoverZ - st.BodyPosition.z) / zSpan);
         }
 
         void FadeAllCursors(float dt)

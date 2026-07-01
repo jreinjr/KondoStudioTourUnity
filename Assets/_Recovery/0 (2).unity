@@ -2174,7 +2174,7 @@ MonoBehaviour:
     roomXAtRightEdgeMeters: 2
     flipX: 1
     hoverLineV01: 0.05
-    selectLineV01: 0.5
+    selectLineV01: 0.45
     extentFilter:
       minCutoff: 1
       beta: 0.3
@@ -2231,7 +2231,7 @@ MonoBehaviour:
   closestDepthStealMarginMeters: 0.25
   closestMinHoldSeconds: 1
   maxHoverZ: 3.25
-  maxSelectZ: 2
+  maxSelectZ: 1.9
   hoverExitMarginMeters: 0.2
   stealMarginMeters: 0.3
   minHoldSeconds: 1.5
@@ -3124,7 +3124,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 11436578, guid: e999ace05c586574fa1b964016f28531, type: 3}
       propertyPath: useNuitrackAi
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 11436578, guid: e999ace05c586574fa1b964016f28531, type: 3}
       propertyPath: maxActiveUsers
@@ -3988,7 +3988,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Kondo.Slideshow.SlideshowController
   style: {fileID: 11400000, guid: 81922ebc1320f67499010196d042a721, type: 2}
-  startSlidePrefab: {fileID: 1036668959}
+  startSlidePrefab: {fileID: 170886132}
   slideCanvas: {fileID: 1946664303}
   blackout: {fileID: 1853446550}
   pointers: {fileID: 2056354060}
