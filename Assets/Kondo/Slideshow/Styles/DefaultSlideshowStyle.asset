@@ -45,7 +45,7 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   navigationGuard: 2
-  navigationDebounceSeconds: 4
+  navigationDebounceSeconds: 2.5
   indicatorColor: {r: 1, g: 1, b: 1, a: 1}
   indicatorFadeSeconds: 0.15
   slideFadeOutSeconds: 0.5
@@ -59,24 +59,21 @@ MonoBehaviour:
   textBackgroundPadding: {x: 24, y: 16}
   maskTint: {r: 0, g: 0, b: 0, a: 0.8}
   overlayDurationSeconds: 12
+  backoutMinSeconds: 4
   overlayZoomScale: 1.1
   overlayZoomSeconds: 1.6
   overlayHotspotsFadeSeconds: 0.3
-  autoAdvanceDefaultSeconds: 10
   autoIndicatorWindowSeconds: 3
   fadeThroughBlackSeconds: 1
+  crossfadeSeconds: 1
   videoPrepTimeoutSeconds: 3
   mouseActiveSeconds: 4
   mouseMoveThresholdPixels: 2
-  rowHeightDesign: 1800
   rowBottomMarginDesign: 40
   rowLabelSpacingDesign: 16
+  navHotspotWidth: 480
   rowFont: {fileID: 11400000, guid: f69ead424b06a644c9ad9f8adb6cd45a, type: 2}
   rowFontSize: 54
-  rowLabelColor: {r: 1, g: 1, b: 1, a: 1}
-  rowLabelBg: {r: 0, g: 0, b: 0, a: 0}
-  rowLabelHoverBg: {r: 0.2, g: 0.45, b: 0.7, a: 0}
-  rowIdleAlpha: 0.95
   rowFadeSeconds: 0.25
   helperFont: {fileID: 11400000, guid: f69ead424b06a644c9ad9f8adb6cd45a, type: 2}
   helperFontSize: 56

@@ -37,8 +37,8 @@ namespace Kondo.Slideshow
         [Tooltip("Secondary background fill layered over the base. Its fillAmount tracks the active user's " +
                  "hover→select proximity; its color is authored on this image. Use a Filled-type Image.")]
         public Image fillBackground;
-        [Tooltip("Direction the secondary fill grows as the user approaches select range.")]
-        public RowFillDirection fillDirection = RowFillDirection.LeftToRight;
+        [Tooltip("Directional arrow decoration. Flipped vertically (Y scale -1) when the fill direction is Left→Right.")]
+        public Transform arrow;
         [Tooltip("Label text (the hotspot's display name).")]
         public TextMeshProUGUI label;
         [Tooltip("Radial dwell ring, shown on the right of the label.")]
@@ -46,18 +46,23 @@ namespace Kondo.Slideshow
 
         // The background's authored idle color, captured at Init so highlight can lerp back to it.
         Color idleColor = Color.white;
+        // Fill grow direction, supplied per-hotspot via Init (this prefab is instantiated at runtime,
+        // so the direction is authored on SlideHotspot rather than on the prefab).
+        RowFillDirection fillDirection = RowFillDirection.LeftToRight;
 
         public RectTransform Rect => rectTransform != null ? rectTransform : (rectTransform = (RectTransform)transform);
 
         void Awake() => ConfigureFillBackground();
 
         /// <summary>
-        /// Set the label text and fit the height-derived layout (the text's right margin and the
-        /// ring's size/offset). Colors and item height are authored on the prefab; slot width and
-        /// position are driven by the row's layout group. Font/size come from the style.
+        /// Set the label text, the secondary fill's grow direction, and fit the height-derived layout
+        /// (the text's right margin and the ring's size/offset). Colors and item height are authored on
+        /// the prefab; slot width and position are driven by the row's layout group; the fill direction
+        /// is authored per-hotspot on <see cref="SlideHotspot"/>. Font/size come from the style.
         /// </summary>
-        public void Init(SlideshowStyle style, string text)
+        public void Init(SlideshowStyle style, string text, RowFillDirection fillDirection)
         {
+            this.fillDirection = fillDirection;
             float height = Rect.rect.height; // prefab-authored height
 
             ConfigureFillBackground();
@@ -135,9 +140,12 @@ namespace Kondo.Slideshow
                 fillBackground.fillAmount = Mathf.Clamp01(proximity01);
         }
 
-        /// <summary>Apply the fill method/origin from <see cref="fillDirection"/> to the secondary fill image.</summary>
+        /// <summary>Apply the fill method/origin from <see cref="fillDirection"/> to the secondary fill image,
+        /// and flip the arrow decoration to match.</summary>
         void ConfigureFillBackground()
         {
+            OrientArrow();
+
             if (fillBackground == null)
                 return;
             fillBackground.type = Image.Type.Filled;
@@ -157,6 +165,16 @@ namespace Kondo.Slideshow
                     break;
             }
             fillBackground.raycastTarget = false;
+        }
+
+        /// <summary>Flip the arrow's Y scale to -1 for a Left→Right fill, +1 otherwise.</summary>
+        void OrientArrow()
+        {
+            if (arrow == null)
+                return;
+            Vector3 scale = arrow.localScale;
+            scale.y = fillDirection == RowFillDirection.LeftToRight ? -Mathf.Abs(scale.y) : Mathf.Abs(scale.y);
+            arrow.localScale = scale;
         }
 
 #if UNITY_EDITOR

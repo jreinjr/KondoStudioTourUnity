@@ -93,7 +93,7 @@ namespace Kondo.Slideshow
                 HotspotRowItem item = Instantiate(prefab);
                 item.transform.SetParent(container, false);
                 item.name = $"RowItem_{hotspot.DisplayLabel}";
-                item.Init(style, hotspot.DisplayLabel);
+                item.Init(style, hotspot.DisplayLabel, hotspot.fillDirection);
                 // Navigation labels take the style's fixed width; investigation labels flex to fill the rest.
                 if (hotspot.isInvestigation)
                     item.SetFlexibleWidth(0f);

@@ -77,14 +77,16 @@ namespace Kondo.Slideshow
         [Header("Overlay Hotspots")]
         [Tooltip("How long an overlay holds on screen after its elements finish fading in.")]
         [Min(0f)] public float overlayDurationSeconds = 6f;
+        [Tooltip("Minimum time an overlay or auto-advance slide stays up before a step-back can cancel/advance it. The timed hold still runs to completion on its own; only the back-out early-exit is suppressed for this long.")]
+        [Min(0f)] public float backoutMinSeconds = 5f;
         [Tooltip("Scale the slide content zooms to while an overlay is showing (1.1 = 10%).")]
         [Min(1f)] public float overlayZoomScale = 1.1f;
         [Min(0.01f)] public float overlayZoomSeconds = 0.6f;
         [Tooltip("Fade for the hotspots disappearing/reappearing around an overlay.")]
         [Min(0.01f)] public float overlayHotspotsFadeSeconds = 0.3f;
 
+        // Auto-advance slides are functional overlays: their timed hold uses overlayDurationSeconds above.
         [Header("Auto Advance")]
-        [Min(0.1f)] public float autoAdvanceDefaultSeconds = 10f;
         [Tooltip("The radial indicator fills during this many final seconds before an auto advance fires.")]
         [Min(0f)] public float autoIndicatorWindowSeconds = 3f;
 

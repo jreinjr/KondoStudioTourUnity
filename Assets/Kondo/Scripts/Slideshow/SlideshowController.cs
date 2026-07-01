@@ -69,6 +69,7 @@ namespace Kondo.Slideshow
         SlideTransitionTarget pendingTarget;
         SlideshowState state;
         float idleEnteredTime; // when the current slide became interactive (TimedDebounce guard)
+        bool autoBackoutEngaged; // the active user has been within the back-out line since this idle began
         readonly HashSet<SlideHotspot> hovered = new HashSet<SlideHotspot>();
 
         readonly InImageHotspotSelector inImageSelector = new InImageHotspotSelector();
@@ -146,6 +147,8 @@ namespace Kondo.Slideshow
                 selectorSlide = null;
                 ActivateSelectorForCurrentSlide();
             }
+
+            UpdateCursorSuppression();
 
             if (state != SlideshowState.Idle || currentSlide == null)
                 return;
@@ -272,17 +275,29 @@ namespace Kondo.Slideshow
             UpdateHelperText(zone, pointed);
 
             bool autoFired = currentSlide.TickAutoAdvance(dt);
+            // Auto-advance slides mirror the overlay hold: they advance either when the countdown
+            // expires (above) or when the engaged user steps back past the back-out line, so the
+            // next visitor isn't stuck waiting out the full delay. The back-out is suppressed for the
+            // first backoutMinSeconds; AutoAdvanceBackedOut still runs each frame to keep its
+            // engagement latch current during that window.
+            if (!autoFired && currentSlide.AutoAdvanceTarget != null)
+            {
+                bool backedOut = AutoAdvanceBackedOut();
+                if (backedOut && Time.time - idleEnteredTime >= style.backoutMinSeconds)
+                    autoFired = true;
+            }
 
             // Pre-open the most likely transition video so its first frame sits ready
             // under the slide before the reveal. A dwelling hotspot wins; otherwise a
             // hover-zone aim warms its clip up before the visitor steps forward; otherwise
-            // the auto countdown.
+            // the auto countdown — or an engaged user on an auto-advance slide, whose
+            // back-out could fire the advance well before the countdown window.
             SlideTransitionTarget prepTarget = null;
             if (prepCandidate != null)
                 prepTarget = prepCandidate.action == HotspotAction.Transition ? prepCandidate.Target : null;
             else if (pointed != null)
                 prepTarget = pointed.action == HotspotAction.Transition ? pointed.Target : null;
-            else if (currentSlide.AutoAdvanceTimeRemaining <= style.autoIndicatorWindowSeconds + 1f)
+            else if (autoBackoutEngaged || currentSlide.AutoAdvanceTimeRemaining <= style.autoIndicatorWindowSeconds + 1f)
                 prepTarget = currentSlide.AutoAdvanceTarget;
             if (prepTarget != null && prepTarget.kind == TransitionKind.Video &&
                 !string.IsNullOrEmpty(prepTarget.transitionVideoPath))
@@ -299,6 +314,52 @@ namespace Kondo.Slideshow
             {
                 BeginTransition(currentSlide.AutoAdvanceTarget);
             }
+        }
+
+        /// <summary>
+        /// Hide the pointer cursor(s) while they can't do anything, so they only fade in once the
+        /// freshly-loaded slide is actually interactable: (1) all through a slide-to-slide transition
+        /// (the cursor mustn't linger over the transition video / blackout), and (2) through the new
+        /// slide's interaction-gating window after it reaches Idle — the navigation debounce for a
+        /// hotspot slide, the back-out minimum for an auto-advance slide. Overlays keep their (flipped)
+        /// cursor throughout, since the visitor uses it to step back and close them.
+        /// </summary>
+        void UpdateCursorSuppression()
+        {
+            UserPointerManager pm = pointers != null ? pointers.pointerManager : null;
+            if (pm != null)
+                pm.SuppressCursors = ShouldSuppressCursor();
+        }
+
+        bool ShouldSuppressCursor()
+        {
+            if (state == SlideshowState.OverlayShowing)
+                return false;
+            if (state != SlideshowState.Idle)
+                return true; // mid slide-to-slide transition
+            // Freshly loaded slide: stay hidden until its interaction gate opens, then fade in.
+            return Time.time - idleEnteredTime < CursorInteractableDelaySeconds();
+        }
+
+        /// <summary>
+        /// Seconds after a slide becomes Idle before its cursor can act (and so is shown): the earliest
+        /// of the guard timers gating this slide — the auto-advance back-out minimum, and, for a hotspot
+        /// slide under the timed-debounce guard, the navigation debounce. The cursor fades in as soon as
+        /// it can do *something* (dwell a hotspot or back out), so a slide gated by both appears at the
+        /// earlier mark. Both windows are measured from <see cref="idleEnteredTime"/>, matching the
+        /// dwell/back-out gates in Update. Zero when nothing time-gates the slide.
+        /// </summary>
+        float CursorInteractableDelaySeconds()
+        {
+            if (currentSlide == null || style == null)
+                return 0f;
+            float delay = float.PositiveInfinity;
+            if (currentSlide.AutoAdvanceTarget != null)
+                delay = Mathf.Min(delay, style.backoutMinSeconds);
+            if (style.navigationGuard == NavigationGuardMode.TimedDebounce &&
+                currentSlide.Hotspots != null && currentSlide.Hotspots.Count > 0)
+                delay = Mathf.Min(delay, style.navigationDebounceSeconds);
+            return float.IsPositiveInfinity(delay) ? 0f : delay;
         }
 
         /// <summary>Dev fallback: arrow keys cycle the simulated zone None→Hover→Select (used only when no body supplies depth).</summary>
@@ -369,6 +430,8 @@ namespace Kondo.Slideshow
             st.HoveredHotspotKind = hotspot == null
                 ? CursorHotspotKind.None
                 : hotspot.isInvestigation ? CursorHotspotKind.Investigation : CursorHotspotKind.Navigation;
+            // Nav hotspots can point the beckon arrow right; investigation/none leave it at the default (left).
+            st.HoveredArrowMirror = hotspot != null && !hotspot.isInvestigation && hotspot.arrowPointsRight;
             st.HotspotKindSetTime = Time.time;
         }
 
@@ -379,7 +442,9 @@ namespace Kondo.Slideshow
         IEnumerator OverlayRoutine(SlideHotspot hotspot)
         {
             Debug.Log($"[SlideshowController] Overlay fired: '{hotspot.name}' on '{currentSlide.name}' t={Time.time:F2}");
+            float openTime = Time.time; // back-out is suppressed until backoutMinSeconds after this
             state = SlideshowState.OverlayShowing;
+            Kondo.UI.BeckonGraphic.SetPointingDown(true); // flip the cursor's beckon to point down for the duration of the overlay
             activeSelector?.SetVisible(false);
             helperText?.SetVisible(false);
             Slide slide = currentSlide;
@@ -413,14 +478,15 @@ namespace Kondo.Slideshow
             if (slowestIn > 0f)
                 yield return new WaitForSeconds(slowestIn);
 
-            // Hold the overlay open, but end early if the visitor steps back out of the highlight
-            // zone (e.g. walks away) so the next person isn't stuck waiting out the full duration.
-            // The reverse below still plays in full, so it closes gracefully either way.
+            // Hold the overlay open, but end early if the visitor steps back past the back-out line
+            // (e.g. walks away) so the next person isn't stuck waiting out the full duration. The
+            // early exit is suppressed for the first backoutMinSeconds so a brief step-back right
+            // after opening can't immediately cancel it. The reverse below still plays in full.
             for (float held = 0f; held < hotspot.OverlayDuration; held += Time.deltaTime)
             {
-                if (!ActiveUserInHighlightZone())
+                if (Time.time - openTime >= style.backoutMinSeconds && !ActiveUserWithinBackoutZone())
                 {
-                    Debug.Log($"[SlideshowController] Overlay '{hotspot.name}' ended early: active user left the highlight zone t={Time.time:F2}");
+                    Debug.Log($"[SlideshowController] Overlay '{hotspot.name}' ended early: active user backed out t={Time.time:F2}");
                     break;
                 }
                 yield return null;
@@ -445,20 +511,42 @@ namespace Kondo.Slideshow
         }
 
         /// <summary>
-        /// True while the active tracked user is still within (or closer than) the highlight zone
-        /// — the Hover/Select depth band where hotspots light up. Returns true when there is no
-        /// tracked body driving the cursor (dev mouse / no sensor), since a mouse can't "step
-        /// back" and overlays shouldn't self-cancel without a depth source. Mirrors the zone test
-        /// in <see cref="Update"/> (wall at negative Z, so smaller z is closer than maxHoverZ).
+        /// True while the active tracked user is at or within the back-out line — the depth past
+        /// which an open overlay or an auto-advancing slide backs out. Returns true when there is no
+        /// tracked body driving the cursor (dev mouse / no sensor), since a mouse can't "step back"
+        /// and overlays shouldn't self-cancel without a depth source. (Wall at negative Z, so a
+        /// smaller z is closer than MaxBackoutZ.)
         /// </summary>
-        bool ActiveUserInHighlightZone()
+        bool ActiveUserWithinBackoutZone()
         {
             UserPointerManager pm = pointers != null ? pointers.pointerManager : null;
             if (pm == null || pm.ActiveUserId < 0)
                 return true;
             if (!pm.States.TryGetValue(pm.ActiveUserId, out var st) || !st.HasBody)
                 return true;
-            return st.BodyPosition.z <= pm.maxHoverZ;
+            return st.BodyPosition.z <= pm.MaxBackoutZ;
+        }
+
+        /// <summary>
+        /// True on the frame the active user steps back out of an auto-advancing slide. Only a genuine
+        /// step-back counts: the user must have first been seen within the back-out line during this
+        /// idle period (latched in <see cref="autoBackoutEngaged"/>), so a visitor merely standing far
+        /// away — or no tracked body at all — never fast-forwards the slide. Mirrors the overlay's
+        /// back-out (which is always a genuine step-back, since overlays only open from the Select zone).
+        /// </summary>
+        bool AutoAdvanceBackedOut()
+        {
+            UserPointerManager pm = pointers != null ? pointers.pointerManager : null;
+            if (pm == null || pm.ActiveUserId < 0)
+                return false;
+            if (!pm.States.TryGetValue(pm.ActiveUserId, out var st) || !st.HasBody)
+                return false;
+            if (st.BodyPosition.z <= pm.MaxBackoutZ)
+            {
+                autoBackoutEngaged = true; // the user has come within the back-out line
+                return false;
+            }
+            return autoBackoutEngaged; // farther than the line, and they were engaged: back out
         }
 
         void BeginTransition(SlideTransitionTarget target)
@@ -663,7 +751,11 @@ namespace Kondo.Slideshow
         {
             pendingTarget = null;
             state = SlideshowState.Idle;
+            // Auto-advance slides are functional overlays (timed hold + step-back back-out), so their
+            // beckon points down for the duration just like ShowOverlay; every other slide points up.
+            Kondo.UI.BeckonGraphic.SetPointingDown(currentSlide.AutoAdvanceTarget != null);
             idleEnteredTime = Time.time; // start the TimedDebounce window for the new slide
+            autoBackoutEngaged = false;  // re-arm the auto-advance back-out latch for the new slide
             currentSlide.BeginAutoAdvance();
 
             if (activeSelector != null)

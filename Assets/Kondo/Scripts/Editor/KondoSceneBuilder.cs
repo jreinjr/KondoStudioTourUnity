@@ -198,7 +198,9 @@ namespace Kondo.EditorTools
             beckonRect.SetParent(root.transform, false);
             beckonRect.anchoredPosition = Vector2.zero;
 
-            // Fill graphic (proximity meter; sprites swap per hotspot kind). Assign sprites on the prefab.
+            // Legacy proximity meter (magnifier/footprint). Superseded by the beckon stack's own
+            // progress fill, so it's built but left hidden and unwired — kept, not deleted, so it can
+            // be re-enabled if desired. Assign sprites on the prefab.
             var fillGo = new GameObject("FillGraphic", typeof(RectTransform), typeof(CanvasGroup), typeof(FillGraphic));
             var fillRect = (RectTransform)fillGo.transform;
             fillRect.SetParent(root.transform, false);
@@ -213,10 +215,25 @@ namespace Kondo.EditorTools
             fillGraphic.group = fillGo.GetComponent<CanvasGroup>();
             fillGraphic.outlineImage = fillOutline;
             fillGraphic.fillImage = fillFill;
+            fillGo.SetActive(false);
+
+            // Inactive fallback: a plain dot shown only when this cursor is not the active user
+            // (the beckon + fill above are hidden then). Reuses the builtin knob sprite.
+            Sprite knob = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
+            var dotGo = new GameObject("InactiveDot", typeof(RectTransform), typeof(Image));
+            var dotRect = (RectTransform)dotGo.transform;
+            dotRect.SetParent(root.transform, false);
+            dotRect.sizeDelta = new Vector2(28f, 28f);
+            dotRect.anchoredPosition = Vector2.zero;
+            var dotImage = dotGo.GetComponent<Image>();
+            dotImage.sprite = knob;
+            dotImage.raycastTarget = false;
 
             var view = root.GetComponent<PointerCursorView>();
             view.canvasGroup = root.GetComponent<CanvasGroup>();
-            view.fillGraphic = fillGraphic;
+            view.fillGraphic = null; // legacy meter hidden; the beckon stack owns the progress fill now
+            view.inactiveDotRect = dotRect;
+            view.inactiveDotImage = dotImage;
 
             GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, AnimatedCursorPrefabPath);
             Object.DestroyImmediate(root);
@@ -248,6 +265,7 @@ namespace Kondo.EditorTools
             var cells = new RectTransform[maxTriangles];
             var outlines = new Image[maxTriangles];
             var fills = new Image[maxTriangles];
+            var progressFills = new Image[maxTriangles];
             for (int i = 0; i < maxTriangles; i++)
             {
                 var cell = new GameObject($"Triangle{i}", typeof(RectTransform));
@@ -255,7 +273,11 @@ namespace Kondo.EditorTools
                 cellRect.SetParent(rootRect, false);
                 cellRect.sizeDelta = new Vector2(triSize, triSize);
                 cellRect.anchoredPosition = new Vector2(0f, bottomY + i * step); // bottom → top
-                // Outline first (behind), fill on top (its opacity is the animated part).
+                // Back → front: solid progress fill (behind), outline stroke, then the time-pulsing fill.
+                progressFills[i] = MakeStretchImage("ProgressFill", cellRect);
+                progressFills[i].type = Image.Type.Filled;
+                progressFills[i].fillMethod = Image.FillMethod.Vertical;
+                progressFills[i].fillOrigin = (int)Image.OriginVertical.Bottom;
                 outlines[i] = MakeStretchImage("Outline", cellRect);
                 fills[i] = MakeStretchImage("Fill", cellRect);
                 cells[i] = cellRect;
@@ -265,6 +287,7 @@ namespace Kondo.EditorTools
             beckon.cells = cells;
             beckon.outlines = outlines;
             beckon.fills = fills;
+            beckon.progressFills = progressFills;
 
             GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, BeckonGraphicPrefabPath);
             Object.DestroyImmediate(root);

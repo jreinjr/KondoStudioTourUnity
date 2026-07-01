@@ -42,7 +42,7 @@ namespace Kondo.Slideshow
                 {
                     float z = active.BodyPosition.z; // wall at negative Z, so smaller = closer
                     string zone = z <= pm.maxSelectZ ? "Select" : z <= pm.maxHoverZ ? "Hover" : "None";
-                    text.AppendLine($"activeUser: {pm.ActiveUserId}  z={z:F2}m  zone={zone} (hover≤{pm.maxHoverZ:F2} select≤{pm.maxSelectZ:F2})");
+                    text.AppendLine($"activeUser: {pm.ActiveUserId}  z={z:F2}m  zone={zone} (hover≤{pm.maxHoverZ:F2} select≤{pm.maxSelectZ:F2} backout>{pm.MaxBackoutZ:F2})");
                 }
                 else
                 {

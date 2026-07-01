@@ -17,7 +17,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &4042723104122603187
 RectTransform:
   m_ObjectHideFlags: 0
@@ -228,7 +228,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Kondo.Slideshow.HotspotRowItem
   rectTransform: {fileID: 6627216544632326561}
+  layoutElement: {fileID: 0}
   background: {fileID: 1675608027700730903}
+  hoverColor: {r: 0.2, g: 0.45, b: 0.7, a: 0.9}
+  fillBackground: {fileID: 0}
+  fillDirection: 0
   label: {fileID: 807114989633185413}
   indicator: {fileID: 1267181666920427287}
 --- !u!1001 &4166000188868590196

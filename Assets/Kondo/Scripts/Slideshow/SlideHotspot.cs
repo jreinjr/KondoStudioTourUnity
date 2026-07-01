@@ -30,6 +30,11 @@ namespace Kondo.Slideshow
                  "cursor's look) — it does NOT change firing behavior, which stays driven by 'action'.")]
         public bool isInvestigation;
 
+        [Tooltip("Navigation only: point the cursor's beckon arrow right (checked) instead of left (unchecked). " +
+                 "This only mirrors the arrow horizontally — it is independent of the label's Fill Direction and " +
+                 "does not affect the beckon's bottom→top progress fill.")]
+        public bool arrowPointsRight;
+
         [Header("Row Placeholder")]
         [Tooltip("Make this a blank, non-interactive bottom-row spacer: it reserves a slot in the selection row " +
                  "(keeping the other options aligned) but shows no label and can never be hovered or fired. " +
@@ -50,6 +55,9 @@ namespace Kondo.Slideshow
         [Header("Label")]
         [Tooltip("Name shown in the bottom-row selection mode. Falls back to the target slide's name, then this object's name.")]
         public string label;
+        [Tooltip("Direction the bottom-row label's secondary background fill grows as the user approaches select range. " +
+                 "Authored here (not on the row-item prefab) because that prefab is instantiated at runtime and can't take scene edits.")]
+        public RowFillDirection fillDirection = RowFillDirection.LeftToRight;
 
         [Header("Overlay (ShowOverlay action)")]
         [Tooltip("Elements (focus mask, text block) revealed by this hotspot. Listed elements are excluded from the slide's enter fades automatically.")]
@@ -187,8 +195,12 @@ namespace Kondo.Slideshow
 
             float idle = style != null ? style.hotspotIdleAlpha : 0.25f;
             float max = style != null ? style.hotspotHoverMaxAlpha : 0.85f;
+            // Navigation hotspots don't brighten their in-image graphic on hover — the only hover
+            // feedback is the cursor's beckon fill (driven by proximity). They hold their idle alpha.
+            // Investigation hotspots still fade up with the highlight.
+            float graphicHighlight = isInvestigation ? highlight01 : 0f;
             if (group != null)
-                group.alpha = Mathf.Lerp(idle, max, highlight01);
+                group.alpha = Mathf.Lerp(idle, max, graphicHighlight);
             if (indicator != null && DriveIndicator)
                 indicator.SetProgress(dwell01);
 

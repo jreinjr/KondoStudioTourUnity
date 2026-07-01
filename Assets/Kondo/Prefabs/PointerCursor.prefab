@@ -150,11 +150,15 @@ MonoBehaviour:
   inactiveDotColor: {r: 0.9, g: 0.9, b: 0.9, a: 0.33333334}
   inactiveSize: 50
   userTintStrength: 0.5
-  sizeScaleAtHover: 0.25
-  sizeScaleAtSelect: 1
+  sizeScaleAtHover: 1
+  sizeScaleAtSelect: 2
   dotScaleAtHover: 0
   dotScaleAtSelect: 1
   styleLerpSeconds: 0.15
+  fillGraphic: {fileID: 0}
+  inactiveDotRect: {fileID: 0}
+  inactiveDotImage: {fileID: 0}
+  inactiveDotSize: 28
   enableTrail: 0
   trailInterval: 0.03
   trailLife: 0.25

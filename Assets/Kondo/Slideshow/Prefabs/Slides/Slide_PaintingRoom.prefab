@@ -420,7 +420,7 @@ CanvasGroup:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3926437755941070828}
   m_Enabled: 1
-  m_Alpha: 0
+  m_Alpha: 1
   m_Interactable: 0
   m_BlocksRaycasts: 0
   m_IgnoreParentGroups: 0
@@ -638,6 +638,8 @@ MonoBehaviour:
     transitionVideoPath: 
     overrideFadeDuration: 0
     fadeThroughBlackSecondsOverride: 1
+    overrideCrossfadeDuration: 0
+    crossfadeSecondsOverride: 1
   autoAdvanceIndicator: {fileID: 0}
 --- !u!223 &6841969297059609197
 Canvas:
@@ -1213,7 +1215,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8841339366859456818, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 1239.48
+      value: 756.34
       objectReference: {fileID: 0}
     - target: {fileID: 8841339366859456818, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_SizeDelta.y
@@ -1249,11 +1251,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8841339366859456818, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: -618
+      value: -729
       objectReference: {fileID: 0}
     - target: {fileID: 8841339366859456818, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 89
+      value: 219
       objectReference: {fileID: 0}
     - target: {fileID: 8841339366859456818, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -1602,6 +1604,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: TextBlock
       objectReference: {fileID: 0}
+    - target: {fileID: 6109106056278608845, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8248605108294190613, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: delaySeconds
       value: 1
@@ -1636,11 +1642,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8841339366859456818, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 1239.48
+      value: 772
       objectReference: {fileID: 0}
     - target: {fileID: 8841339366859456818, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 315
+      value: 403.8
       objectReference: {fileID: 0}
     - target: {fileID: 8841339366859456818, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1672,11 +1678,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8841339366859456818, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: -618
+      value: -893
       objectReference: {fileID: 0}
     - target: {fileID: 8841339366859456818, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 89
+      value: 212
       objectReference: {fileID: 0}
     - target: {fileID: 8841339366859456818, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -1730,6 +1736,10 @@ PrefabInstance:
     - target: {fileID: 1368366856846558994, guid: a47fe0a0b004a0b4a87a188e9526db83, type: 3}
       propertyPath: m_Name
       value: FocusMaskCenter
+      objectReference: {fileID: 0}
+    - target: {fileID: 1368366856846558994, guid: a47fe0a0b004a0b4a87a188e9526db83, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3444918887530703806, guid: a47fe0a0b004a0b4a87a188e9526db83, type: 3}
       propertyPath: m_Pivot.x

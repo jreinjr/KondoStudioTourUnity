@@ -190,7 +190,9 @@ namespace Kondo.Slideshow
             }
         }
 
-        float AutoAdvanceDelaySeconds => style != null ? style.autoAdvanceDefaultSeconds : 10f;
+        // Auto-advance slides act as functional overlays, so their timed hold shares the overlay
+        // duration rather than a separate value.
+        float AutoAdvanceDelaySeconds => style != null ? style.overlayDurationSeconds : 6f;
 
         /// <summary>Arm the countdown. Called by the controller when the slide reaches Idle.</summary>
         public void BeginAutoAdvance()

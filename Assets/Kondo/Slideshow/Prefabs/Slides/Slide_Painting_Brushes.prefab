@@ -516,7 +516,7 @@ MonoBehaviour:
   backgroundVideoDisplay: {fileID: 8763422658876052054}
   backgroundPlayer: {fileID: 4446620890810354612}
   backgroundVideoPath: 
-  autoAdvance: 0
+  autoAdvance: 1
   autoAdvanceMode: 0
   autoAdvanceTarget:
     targetSlide: {fileID: 0}
@@ -524,6 +524,8 @@ MonoBehaviour:
     transitionVideoPath: 
     overrideFadeDuration: 0
     fadeThroughBlackSecondsOverride: 1
+    overrideCrossfadeDuration: 0
+    crossfadeSecondsOverride: 1
   autoAdvanceIndicator: {fileID: 0}
 --- !u!223 &6160082996683375580
 Canvas:
@@ -744,8 +746,8 @@ PrefabInstance:
     - target: {fileID: 3648673615470356120, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_text
       value: "The shelves and cabinets of Takahiro\u2019s studio are scattered with
-        porcelains decorated in blue-and-white <i>sometsuke</i>.  These brush pots
-        are by his father and grandfather."
+        porcelains decorated in blue-and-white sometsuke. These brush pots are by
+        his father and grandfather."
       objectReference: {fileID: 0}
     - target: {fileID: 3648673615470356120, guid: 30ab4a25ad73efd46909039576e6cd63, type: 3}
       propertyPath: m_fontAsset

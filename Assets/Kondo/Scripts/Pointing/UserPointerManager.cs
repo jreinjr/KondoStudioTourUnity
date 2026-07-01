@@ -80,6 +80,17 @@ namespace Kondo.Pointing
         [Tooltip("Depth zones: a user must be at room-space Z <= this (closer than MaxHoverZ) for the Select zone.")]
         public float maxSelectZ = 1.5f;
 
+        [Tooltip("Depth zones: back-out line. While an overlay is open or an auto-advancing slide is holding, the active user stepping back past this Z (farther from the wall) backs out of it. Leave the override off to sit halfway between the Select and Hover lines; enable it to set an explicit distance.")]
+        public bool overrideBackoutZ = false;
+        public float maxBackoutZOverride = 2.0f;
+
+        /// <summary>
+        /// Back-out depth line (meters): the active user stepping back past this Z (farther from the
+        /// wall) backs out of an open overlay or an auto-advancing slide. Defaults to halfway between
+        /// <see cref="maxSelectZ"/> and <see cref="maxHoverZ"/> unless <see cref="overrideBackoutZ"/> is set.
+        /// </summary>
+        public float MaxBackoutZ => overrideBackoutZ ? maxBackoutZOverride : (maxSelectZ + maxHoverZ) * 0.5f;
+
         [Tooltip("FirstSeenInHover: depth hysteresis (meters). The active holder keeps the cursor until they step past MaxHoverZ + this margin, even though acquisition still requires being within MaxHoverZ. Prevents boundary flicker from sensor jitter.")]
         [Min(0f)] public float hoverExitMarginMeters = 0.2f;
 
@@ -150,6 +161,8 @@ namespace Kondo.Pointing
             public float MagnetSetTime = float.NegativeInfinity;
             /// <summary>Kind of hotspot currently under this cursor, written by the slideshow layer; expires if not refreshed.</summary>
             public CursorHotspotKind HoveredHotspotKind;
+            /// <summary>Whether the hovered nav hotspot wants the beckon arrow mirrored (pointing right). Expires with the kind.</summary>
+            public bool HoveredArrowMirror;
             public float HotspotKindSetTime = float.NegativeInfinity;
             public PointerCursorView View;
             public AimSample Sample;
@@ -183,6 +196,14 @@ namespace Kondo.Pointing
 
         public IReadOnlyDictionary<int, PointerState> States => states;
         public int ActiveUserId { get; private set; } = -1;
+
+        /// <summary>
+        /// External visibility gate raised by the slideshow layer: while true, every cursor fades
+        /// out (using the normal fade-out timing) regardless of tracking. The slideshow sets it
+        /// during slide transitions so the cursor doesn't linger over the transition video / black,
+        /// and clears it to restore normal per-user visibility. Runtime-only, not serialized.
+        /// </summary>
+        [System.NonSerialized] public bool SuppressCursors;
 
         void Awake()
         {
@@ -471,7 +492,12 @@ namespace Kondo.Pointing
 
                 bool isActive = kv.Key == ActiveUserId;
                 bool visible = st.HasUv && st.TimeSinceUV <= cursorHoldSeconds;
-                if (!isActive)
+                if (SuppressCursors)
+                {
+                    // Slideshow transition in progress: fade every cursor out regardless of tracking.
+                    visible = false;
+                }
+                else if (!isActive)
                 {
                     if (!showInactiveCursors)
                         visible = false;
@@ -488,12 +514,13 @@ namespace Kondo.Pointing
                 st.View.SetActive(isActive);
                 st.View.SetAlpha(st.Alpha);
                 st.View.SetProximity(DepthProximity01(st));
+                st.View.SetBackoutProximity(DepthBackoutProximity01(st));
                 // Hovered hotspot kind expires like magnetism when the slideshow stops refreshing it
                 // (transitions / non-Idle), so the animated cursor drops back to its neutral state.
-                CursorHotspotKind kind = Time.time - st.HotspotKindSetTime < 0.1f
-                    ? st.HoveredHotspotKind
-                    : CursorHotspotKind.None;
+                bool kindFresh = Time.time - st.HotspotKindSetTime < 0.1f;
+                CursorHotspotKind kind = kindFresh ? st.HoveredHotspotKind : CursorHotspotKind.None;
                 st.View.SetHotspotKind(kind);
+                st.View.SetBeckonMirrored(kindFresh && st.HoveredArrowMirror);
                 if (st.HasUv)
                 {
                     Vector2 shown = st.DisplayUv;
@@ -519,6 +546,21 @@ namespace Kondo.Pointing
             if (Mathf.Abs(zSpan) < 1e-4f)
                 return 1f;
             return Mathf.Clamp01((maxHoverZ - st.BodyPosition.z) / zSpan);
+        }
+
+        /// <summary>
+        /// 0..1 back-out progress for the beckon's fill while it is flipped down (Overlay / auto-advance):
+        /// 0 at (or within) the Select line, 1 at (or past) the back-out line. No body reports 0 (a dev
+        /// mouse can't back out). (Wall at negative Z, so a larger z is farther from the wall.)
+        /// </summary>
+        public float DepthBackoutProximity01(PointerState st)
+        {
+            if (st == null || !st.HasBody)
+                return 0f;
+            float zSpan = MaxBackoutZ - maxSelectZ;
+            if (Mathf.Abs(zSpan) < 1e-4f)
+                return 0f;
+            return Mathf.Clamp01((st.BodyPosition.z - maxSelectZ) / zSpan);
         }
 
         void FadeAllCursors(float dt)
