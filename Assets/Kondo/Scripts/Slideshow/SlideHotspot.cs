@@ -23,6 +23,13 @@ namespace Kondo.Slideshow
         public Image image;
         public DwellIndicator indicator;
 
+        [Header("Hotspot Type")]
+        [Tooltip("Unchecked = Navigation (moves the tour to another slide); checked = Investigation " +
+                 "(a closer look, typically an in-slide overlay). This tag drives the bottom-row label " +
+                 "prefab used for this option and is reported to the cursor (e.g. to switch an animated " +
+                 "cursor's look) — it does NOT change firing behavior, which stays driven by 'action'.")]
+        public bool isInvestigation;
+
         [Header("Row Placeholder")]
         [Tooltip("Make this a blank, non-interactive bottom-row spacer: it reserves a slot in the selection row " +
                  "(keeping the other options aligned) but shows no label and can never be hovered or fired. " +
@@ -259,11 +266,12 @@ namespace Kondo.Slideshow
             float worldRadius = Radius * transform.lossyScale.x;
             UnityEditor.Handles.color = Color.cyan;
             UnityEditor.Handles.DrawWireDisc(world, Vector3.forward, worldRadius);
+            string kind = isInvestigation ? "investigation" : "navigation";
             string caption = action == HotspotAction.ShowOverlay
-                ? $"overlay: {DisplayLabel}"
+                ? $"[{kind}] overlay: {DisplayLabel}"
                 : target != null && target.targetSlide != null
-                    ? $"{DisplayLabel} → {target.targetSlide.name}"
-                    : $"{DisplayLabel} → (no target)";
+                    ? $"[{kind}] {DisplayLabel} → {target.targetSlide.name}"
+                    : $"[{kind}] {DisplayLabel} → (no target)";
             UnityEditor.Handles.Label(world + Vector3.up * worldRadius, caption);
         }
 #endif

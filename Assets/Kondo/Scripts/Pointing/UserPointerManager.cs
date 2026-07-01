@@ -18,7 +18,13 @@ namespace Kondo.Pointing
         public SensorPoseCalibrator calibrator;
         public ProjectionScreen screen;
         public RectTransform cursorCanvas;
+        [Tooltip("Classic ring/dot cursor prefab (used when Cursor Mode = Classic).")]
         public PointerCursorView cursorPrefab;
+        [Tooltip("Animated cursor prefab with an Animator Controller (used when Cursor Mode = Animated). If unassigned, falls back to the classic prefab.")]
+        public PointerCursorView animatedCursorPrefab;
+
+        [Tooltip("Which cursor prefab drives all users: the classic ring/dot or the Animator-driven prefab.")]
+        public PointerCursorMode cursorMode = PointerCursorMode.Classic;
 
         [Header("Pointing Strategy")]
         [Tooltip("Which pointing implementation drives the cursor. Switchable live in Play mode.")]
@@ -34,7 +40,8 @@ namespace Kondo.Pointing
         /// hotspot until it has risen all the way to the Select line.
         /// </summary>
         public bool IsHorizontalPointing =>
-            pointingMode == PointingMode.SpineHorizontal || pointingMode == PointingMode.JointBoundsCenter;
+            pointingMode == PointingMode.SpineHorizontal || pointingMode == PointingMode.JointBoundsCenter
+            || pointingMode == PointingMode.MouseOverrideWithDistance;
 
         [Tooltip("Interaction box for the BoxCursor pointing mode (also visualized by the skeleton debug overlay).")]
         public BoxCursorConfig boxCursor = new BoxCursorConfig();
@@ -141,6 +148,9 @@ namespace Kondo.Pointing
             public Vector2 MagnetUv;
             public float MagnetWeight;
             public float MagnetSetTime = float.NegativeInfinity;
+            /// <summary>Kind of hotspot currently under this cursor, written by the slideshow layer; expires if not refreshed.</summary>
+            public CursorHotspotKind HoveredHotspotKind;
+            public float HotspotKindSetTime = float.NegativeInfinity;
             public PointerCursorView View;
             public AimSample Sample;
             public float LastSeenTime;
@@ -188,7 +198,10 @@ namespace Kondo.Pointing
 
             ApplyModeSwitches();
 
-            bool mouseOverride = pointingMode == PointingMode.MouseOverride;
+            // Both mouse-driven modes share the same synthetic-user path: no sensor, no
+            // floor-calibration warmup, and the single mouse user is force-activated immediately.
+            bool mouseOverride = pointingMode == PointingMode.MouseOverride
+                              || pointingMode == PointingMode.MouseOverrideWithDistance;
             bool calibrated = calibrator != null && calibrator.IsCalibrated;
 
             // MouseOverride drives the cursor straight from the mouse, so it needs neither the
@@ -362,6 +375,7 @@ namespace Kondo.Pointing
             PointingMode.SpineHorizontal => new SpinePointingSolver(jointFilter, horizontalPointing),
             PointingMode.BoxCursor => new BoxCursorPointingSolver(jointFilter, boxCursor),
             PointingMode.MouseOverride => new MouseOverridePointingSolver(),
+            PointingMode.MouseOverrideWithDistance => new MouseOverrideWithDistancePointingSolver(horizontalPointing),
             _ => new PointingArmSolver(jointFilter, rayModel, pointingDetection),
         };
 
@@ -397,9 +411,12 @@ namespace Kondo.Pointing
         {
             var st = new PointerState { UserId = id, LastSeenTime = now, FirstSeenArrival = nextArrival++ };
             st.Solver = BuildSolver();
-            if (cursorPrefab != null && cursorCanvas != null)
+            PointerCursorView prefab = cursorMode == PointerCursorMode.Animated && animatedCursorPrefab != null
+                ? animatedCursorPrefab
+                : cursorPrefab;
+            if (prefab != null && cursorCanvas != null)
             {
-                st.View = Instantiate(cursorPrefab, cursorCanvas);
+                st.View = Instantiate(prefab, cursorCanvas);
                 st.View.name = $"PointerCursor_User{id}";
                 st.View.Init(cursorCanvas);
                 st.View.SetAlpha(0f);
@@ -471,6 +488,12 @@ namespace Kondo.Pointing
                 st.View.SetActive(isActive);
                 st.View.SetAlpha(st.Alpha);
                 st.View.SetProximity(DepthProximity01(st));
+                // Hovered hotspot kind expires like magnetism when the slideshow stops refreshing it
+                // (transitions / non-Idle), so the animated cursor drops back to its neutral state.
+                CursorHotspotKind kind = Time.time - st.HotspotKindSetTime < 0.1f
+                    ? st.HoveredHotspotKind
+                    : CursorHotspotKind.None;
+                st.View.SetHotspotKind(kind);
                 if (st.HasUv)
                 {
                     Vector2 shown = st.DisplayUv;
@@ -488,9 +511,9 @@ namespace Kondo.Pointing
         /// (far), 1 at (or within) the Select-zone distance (close). No body (e.g. MouseOverride)
         /// reports fully close so the dev cursor shows a full dot.
         /// </summary>
-        float DepthProximity01(PointerState st)
+        public float DepthProximity01(PointerState st)
         {
-            if (!st.HasBody)
+            if (st == null || !st.HasBody)
                 return 1f;
             float zSpan = maxHoverZ - maxSelectZ;
             if (Mathf.Abs(zSpan) < 1e-4f)

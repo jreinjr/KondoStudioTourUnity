@@ -21,6 +21,8 @@ namespace Kondo.EditorTools
         const string ScenePath = "Assets/Scenes/KondoStudioTour.unity";
         const string NuitrackPrefabPath = "Assets/NuitrackSDK/Nuitrack/Prefabs/NuitrackScripts.prefab";
         const string CursorPrefabPath = "Assets/Kondo/Prefabs/PointerCursor.prefab";
+        const string AnimatedCursorPrefabPath = "Assets/Kondo/Prefabs/PointerCursorAnimated.prefab";
+        const string BeckonGraphicPrefabPath = "Assets/Kondo/Prefabs/BeckonGraphic.prefab";
 
         [MenuItem("Kondo/Build Studio Tour Scene")]
         public static void Build()
@@ -37,7 +39,8 @@ namespace Kondo.EditorTools
             RectTransform debugCanvas = BuildCanvas("[Kondo] DebugCanvas", 100);
             Text statsText = BuildStatsText(debugCanvas);
             PointerCursorView cursorPrefab = EnsureCursorPrefab();
-            BuildPointingSystem(cursorCanvas, debugCanvas, cursorPrefab, statsText);
+            PointerCursorView animatedCursorPrefab = EnsureAnimatedCursorPrefab();
+            BuildPointingSystem(cursorCanvas, debugCanvas, cursorPrefab, animatedCursorPrefab, statsText);
             KondoSlideshowBuilder.BuildRig();
 
             EditorSceneManager.MarkSceneDirty(scene);
@@ -164,7 +167,126 @@ namespace Kondo.EditorTools
             return prefab.GetComponent<PointerCursorView>();
         }
 
-        static void BuildPointingSystem(RectTransform cursorCanvas, RectTransform debugCanvas, PointerCursorView cursorPrefab, Text statsText)
+        /// <summary>
+        /// Build the procedurally-driven animated cursor prefab: a shared <see cref="BeckonGraphic"/>
+        /// (beckoning triangle stack) plus a <see cref="FillGraphic"/> (a bottom→top proximity fill whose
+        /// sprites differ per hotspot kind), wired to the <see cref="PointerCursorView"/>. No Animator.
+        /// Idempotent: an existing prefab is returned untouched so authored sprites/tuning survive a rebuild.
+        /// The user assigns their triangle/fill/stroke sprites on the prefab afterwards.
+        /// </summary>
+        static PointerCursorView EnsureAnimatedCursorPrefab()
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(AnimatedCursorPrefabPath);
+            if (existing != null)
+                return existing.GetComponent<PointerCursorView>();
+
+            EnsureFolder("Assets/Kondo", "Prefabs");
+
+            GameObject beckonPrefab = EnsureBeckonGraphicPrefab();
+
+            var root = new GameObject("PointerCursorAnimated",
+                typeof(RectTransform), typeof(CanvasGroup), typeof(PointerCursorView));
+            var rootRect = (RectTransform)root.transform;
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.zero;
+            rootRect.pivot = new Vector2(0.5f, 0.5f);
+            rootRect.sizeDelta = new Vector2(80f, 80f);
+
+            // Shared beckon graphic (self-animating triangle stack).
+            var beckon = (GameObject)PrefabUtility.InstantiatePrefab(beckonPrefab);
+            var beckonRect = (RectTransform)beckon.transform;
+            beckonRect.SetParent(root.transform, false);
+            beckonRect.anchoredPosition = Vector2.zero;
+
+            // Fill graphic (proximity meter; sprites swap per hotspot kind). Assign sprites on the prefab.
+            var fillGo = new GameObject("FillGraphic", typeof(RectTransform), typeof(CanvasGroup), typeof(FillGraphic));
+            var fillRect = (RectTransform)fillGo.transform;
+            fillRect.SetParent(root.transform, false);
+            fillRect.sizeDelta = new Vector2(64f, 64f);
+            fillRect.anchoredPosition = Vector2.zero;
+            Image fillOutline = MakeStretchImage("Outline", fillRect);
+            Image fillFill = MakeStretchImage("Fill", fillRect);
+            fillFill.type = Image.Type.Filled;
+            fillFill.fillMethod = Image.FillMethod.Vertical;
+            fillFill.fillOrigin = (int)Image.OriginVertical.Bottom;
+            var fillGraphic = fillGo.GetComponent<FillGraphic>();
+            fillGraphic.group = fillGo.GetComponent<CanvasGroup>();
+            fillGraphic.outlineImage = fillOutline;
+            fillGraphic.fillImage = fillFill;
+
+            var view = root.GetComponent<PointerCursorView>();
+            view.canvasGroup = root.GetComponent<CanvasGroup>();
+            view.fillGraphic = fillGraphic;
+
+            GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, AnimatedCursorPrefabPath);
+            Object.DestroyImmediate(root);
+            return prefab.GetComponent<PointerCursorView>();
+        }
+
+        /// <summary>
+        /// Build (once) the shared BeckonGraphic prefab: three stacked triangle cells (outline + fill
+        /// image each, bottom → top) wired into the <see cref="BeckonGraphic"/> component. Sprites are
+        /// left unassigned for the user to drop in. Returned untouched if it already exists.
+        /// </summary>
+        static GameObject EnsureBeckonGraphicPrefab()
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(BeckonGraphicPrefabPath);
+            if (existing != null)
+                return existing;
+
+            EnsureFolder("Assets/Kondo", "Prefabs");
+
+            var root = new GameObject("BeckonGraphic", typeof(RectTransform), typeof(BeckonGraphic));
+            var rootRect = (RectTransform)root.transform;
+            rootRect.sizeDelta = new Vector2(28f, 96f);
+
+            const int maxTriangles = 3;
+            const float triSize = 28f;
+            const float triSpacing = 4f;
+            float step = triSize + triSpacing;
+            float bottomY = -(maxTriangles * triSize + (maxTriangles - 1) * triSpacing) * 0.5f + triSize * 0.5f;
+            var cells = new RectTransform[maxTriangles];
+            var outlines = new Image[maxTriangles];
+            var fills = new Image[maxTriangles];
+            for (int i = 0; i < maxTriangles; i++)
+            {
+                var cell = new GameObject($"Triangle{i}", typeof(RectTransform));
+                var cellRect = (RectTransform)cell.transform;
+                cellRect.SetParent(rootRect, false);
+                cellRect.sizeDelta = new Vector2(triSize, triSize);
+                cellRect.anchoredPosition = new Vector2(0f, bottomY + i * step); // bottom → top
+                // Outline first (behind), fill on top (its opacity is the animated part).
+                outlines[i] = MakeStretchImage("Outline", cellRect);
+                fills[i] = MakeStretchImage("Fill", cellRect);
+                cells[i] = cellRect;
+            }
+
+            var beckon = root.GetComponent<BeckonGraphic>();
+            beckon.cells = cells;
+            beckon.outlines = outlines;
+            beckon.fills = fills;
+
+            GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, BeckonGraphicPrefabPath);
+            Object.DestroyImmediate(root);
+            return prefab;
+        }
+
+        /// <summary>A full-stretch, non-raycast UI Image child (sprite unassigned).</summary>
+        static Image MakeStretchImage(string name, RectTransform parent)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
+            var rect = (RectTransform)go.transform;
+            rect.SetParent(parent, false);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            var image = go.GetComponent<Image>();
+            image.raycastTarget = false;
+            return image;
+        }
+
+        static void BuildPointingSystem(RectTransform cursorCanvas, RectTransform debugCanvas, PointerCursorView cursorPrefab, PointerCursorView animatedCursorPrefab, Text statsText)
         {
             var go = new GameObject("[Kondo] PointingSystem");
             var calibrator = go.AddComponent<SensorPoseCalibrator>();
@@ -179,6 +301,8 @@ namespace Kondo.EditorTools
             manager.screen = screen;
             manager.cursorCanvas = cursorCanvas;
             manager.cursorPrefab = cursorPrefab;
+            manager.animatedCursorPrefab = animatedCursorPrefab;
+            manager.cursorMode = PointerCursorMode.Classic; // classic by default; switch to Animated to use the Animator-driven cursor
             manager.activeUserMode = ActiveUserMode.SingleUser;
 
             debug.calibrator = calibrator;

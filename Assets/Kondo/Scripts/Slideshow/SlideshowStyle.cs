@@ -91,6 +91,8 @@ namespace Kondo.Slideshow
         [Header("Transitions")]
         [Tooltip("Default total duration of a fade-through-black transition.")]
         [Min(0.05f)] public float fadeThroughBlackSeconds = 1f;
+        [Tooltip("Default duration of a crossfade transition (outgoing slide dissolves into the incoming one).")]
+        [Min(0.05f)] public float crossfadeSeconds = 1f;
         [Tooltip("How long to wait for a video (transition or slide background) before giving up.")]
         [Min(0.5f)] public float videoPrepTimeoutSeconds = 3f;
 
@@ -100,22 +102,19 @@ namespace Kondo.Slideshow
         [Min(0f)] public float mouseMoveThresholdPixels = 2f;
 
         [Header("Hotspot Row (bottom-row selection mode)")]
-        [Tooltip("Height of the bottom selection row, in design units (2880x2160 reference).")]
-        [Min(1f)] public float rowHeightDesign = 180f;
+        // Row height, label colors (idle/hover), and the row's visible opacity are authored on the
+        // per-type HotspotRowItem prefabs (nav/investigation) so the two can look different — they are
+        // deliberately NOT in the shared style.
         [Tooltip("Gap between the row and the bottom screen edge, in design units.")]
         [Min(0f)] public float rowBottomMarginDesign = 40f;
         [Tooltip("Horizontal gap between adjacent label slots, in design units.")]
         [Min(0f)] public float rowLabelSpacingDesign = 16f;
+        [Tooltip("Fixed width (design units) of Navigation labels in the bottom row. Investigation labels " +
+                 "have no fixed width — they flex to fill the space remaining between the navigation labels.")]
+        [Min(1f)] public float navHotspotWidth = 480f;
         [Tooltip("Optional font for the row labels (leave empty for the TMP default).")]
         public TMP_FontAsset rowFont;
         [Min(1f)] public float rowFontSize = 54f;
-        public Color rowLabelColor = Color.white;
-        [Tooltip("Label background at rest.")]
-        public Color rowLabelBg = new Color(0f, 0f, 0f, 0.55f);
-        [Tooltip("Label background at full dwell (the cursor brightens the label as it selects).")]
-        public Color rowLabelHoverBg = new Color(0.2f, 0.45f, 0.7f, 0.9f);
-        [Tooltip("Overall opacity of the row while visible.")]
-        [Range(0f, 1f)] public float rowIdleAlpha = 0.95f;
         [Tooltip("Seconds the whole row fades in/out when shown or hidden (transitions/overlays).")]
         [Min(0.01f)] public float rowFadeSeconds = 0.25f;
 

@@ -18,6 +18,8 @@ namespace Kondo.Pointing
         BoxCursor,
         [Tooltip("Development/override: the cursor follows the mouse exclusively, ignoring the skeleton and how close the user stands. Drives the show from the mouse.")]
         MouseOverride,
+        [Tooltip("Development/override: mouse X drives the cursor X; mouse Y drives a virtual standing distance (Hover zone at 10% screen height, Select zone at 50%) instead of the cursor Y, so the depth-zone interaction can be tested from the mouse.")]
+        MouseOverrideWithDistance,
     }
 
     /// <summary>Per-frame inputs handed to every <see cref="IPointingSolver"/>.</summary>

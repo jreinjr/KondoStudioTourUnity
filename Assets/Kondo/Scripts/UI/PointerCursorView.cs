@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using Kondo.Pointing;
 
 namespace Kondo.UI
 {
@@ -49,6 +50,12 @@ namespace Kondo.UI
         [Tooltip("Seconds to blend between active and inactive styles.")]
         [Min(0.01f)] public float styleLerpSeconds = 0.15f;
 
+        [Header("Animated Mode (procedural)")]
+        [Tooltip("Optional fill graphic (animated cursor only). Driven each frame with the hover→select " +
+                 "proximity and the hovered hotspot kind. Leave null on the classic ring/dot cursor. The " +
+                 "beckon graphic, if present, animates itself and needs no wiring here.")]
+        public FillGraphic fillGraphic;
+
         [Header("Trail (optional)")]
         public bool enableTrail = false;
         [Tooltip("Seconds between trail ghost stamps.")]
@@ -72,6 +79,8 @@ namespace Kondo.UI
         float styleBlend;
         /// <summary>0 at the hover threshold (far), 1 at the select threshold (close); drives the inner dot's growth.</summary>
         float proximity;
+        /// <summary>Kind of hotspot currently under this cursor; forwarded to the Animator in animated mode.</summary>
+        CursorHotspotKind hotspotKind = CursorHotspotKind.None;
         Color userTint = Color.white;
         float trailTimer;
         readonly List<TrailGhost> ghosts = new List<TrailGhost>();
@@ -107,12 +116,24 @@ namespace Kondo.UI
         /// <summary>Depth progress 0..1: 0 at the hover threshold (far), 1 at the select threshold (close). Grows the inner dot.</summary>
         public void SetProximity(float t01) => proximity = Mathf.Clamp01(t01);
 
+        /// <summary>The kind of hotspot currently under this cursor (None when not hovering one). Drives the Animator in animated mode.</summary>
+        public void SetHotspotKind(CursorHotspotKind kind) => hotspotKind = kind;
+
         void Update()
         {
             float target = isActive ? 1f : 0f;
             styleBlend = Mathf.MoveTowards(styleBlend, target, Time.deltaTime / Mathf.Max(styleLerpSeconds, 1e-3f));
             ApplyStyle();
+            DriveAnimated();
             UpdateTrail();
+        }
+
+        void DriveAnimated()
+        {
+            if (fillGraphic == null)
+                return;
+            fillGraphic.SetProximity(proximity);
+            fillGraphic.SetKind(hotspotKind);
         }
 
         void ApplyStyle()

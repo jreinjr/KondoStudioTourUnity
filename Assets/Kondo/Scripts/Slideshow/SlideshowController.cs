@@ -16,6 +16,7 @@ namespace Kondo.Slideshow
         BlackingOut,
         BlackHold,
         BlackingIn,
+        Crossfading,
         OverlayShowing,
     }
 
@@ -244,6 +245,8 @@ namespace Kondo.Slideshow
 
             // Only pull the cursor toward a hotspot when hovering actually counts (Hover/Select).
             ApplyHotspotMagnetism(highlightEnabled ? skeletonHovered : null, skeletonHoverDist);
+            // Tell the active cursor which kind of hotspot it is over (drives the animated cursor).
+            ApplyCursorHotspotKind(highlightEnabled ? pointed : null);
 
             foreach (SlideHotspot hotspot in currentSlide.Hotspots)
             {
@@ -260,7 +263,12 @@ namespace Kondo.Slideshow
                 }
             }
 
-            activeSelector.Tick(currentSlide.Hotspots, dt);
+            // Active user's normalized depth (hover 0 → select 1), driving the row-label background fill.
+            // In the dev/no-body case, approximate it from the simulated zone so it can be exercised.
+            float proximity01 = hasBody
+                ? pm.DepthProximity01(activeBody)
+                : (devZone == InteractionZone.Select ? 1f : devZone == InteractionZone.Hover ? 0.5f : 0f);
+            activeSelector.Tick(currentSlide.Hotspots, proximity01, dt);
             UpdateHelperText(zone, pointed);
 
             bool autoFired = currentSlide.TickAutoAdvance(dt);
@@ -344,6 +352,24 @@ namespace Kondo.Slideshow
             st.MagnetUv = new Vector2(centerPx.x / Screen.width, centerPx.y / Screen.height);
             st.MagnetWeight = style.hotspotMagnetStrength * proximity;
             st.MagnetSetTime = Time.time;
+        }
+
+        /// <summary>
+        /// Report the hovered hotspot's kind (navigation/investigation) to the active user's
+        /// cursor. This is the only place the slideshow's per-hotspot tag maps into the
+        /// pointing-side <see cref="CursorHotspotKind"/>; the manager expires it if we stop
+        /// refreshing it (e.g. during a transition), mirroring the magnetism channel.
+        /// </summary>
+        void ApplyCursorHotspotKind(SlideHotspot hotspot)
+        {
+            if (pointers == null || pointers.pointerManager == null)
+                return;
+            if (!pointers.pointerManager.States.TryGetValue(pointers.pointerManager.ActiveUserId, out var st))
+                return;
+            st.HoveredHotspotKind = hotspot == null
+                ? CursorHotspotKind.None
+                : hotspot.isInvestigation ? CursorHotspotKind.Investigation : CursorHotspotKind.Navigation;
+            st.HotspotKindSetTime = Time.time;
         }
 
         /// <summary>
@@ -451,6 +477,8 @@ namespace Kondo.Slideshow
 
             if (target.kind == TransitionKind.Video)
                 StartCoroutine(VideoTransition());
+            else if (target.kind == TransitionKind.Crossfade)
+                StartCoroutine(CrossfadeTransition(target.CrossfadeSeconds(style)));
             else
                 StartCoroutine(BlackTransition(target.FadeThroughBlackSeconds(style)));
         }
@@ -495,6 +523,38 @@ namespace Kondo.Slideshow
             currentSlide = incoming;
             yield return RevealRoutine(incoming);
             video.Close();
+            EnterIdle();
+        }
+
+        /// <summary>
+        /// Crossfade (cross-dissolve): the incoming slide fades in on top of the outgoing one,
+        /// which stays fully opaque underneath so the midpoint never shows through to the black
+        /// canvas below. No blackout. The outgoing slide is parked once the incoming is fully
+        /// opaque; enter fades then play, matching the other transitions.
+        /// </summary>
+        IEnumerator CrossfadeTransition(float duration)
+        {
+            state = SlideshowState.Crossfading;
+            Slide outgoing = currentSlide;
+
+            // Bring the incoming slide up invisible, guaranteed above the outgoing one (both are
+            // active children of slideCanvas during the dissolve, so sibling order decides depth),
+            // and let its background video reach its first frame before the fade starts.
+            Slide incoming = ShowSlide(pendingTarget.targetSlide);
+            incoming.transform.SetAsLastSibling();
+            yield return WaitForSlideReady(incoming);
+            incoming.OnShown(); // background video runs as the slide dissolves in
+
+            yield return FadeAndWait(incoming.Group, 1f, duration);
+
+            if (outgoing != null)
+            {
+                outgoing.OnHidden();
+                outgoing.gameObject.SetActive(false);
+            }
+
+            currentSlide = incoming;
+            incoming.PlayEnterFades();
             EnterIdle();
         }
 

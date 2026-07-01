@@ -32,8 +32,12 @@ namespace Kondo.Slideshow
         /// <summary>Screen-pixel radius of the hotspot's hit zone.</summary>
         float ZoneRadius(SlideHotspot hotspot);
 
-        /// <summary>Per-frame update of selection visuals (e.g. label dwell progress). Idle only.</summary>
-        void Tick(IReadOnlyList<SlideHotspot> hotspots, float dt);
+        /// <summary>
+        /// Per-frame update of selection visuals (e.g. label dwell progress). Idle only.
+        /// <paramref name="proximity01"/> is the active user's normalized depth between the hover
+        /// (0) and select (1) thresholds — the same value that drives the cursor fill.
+        /// </summary>
+        void Tick(IReadOnlyList<SlideHotspot> hotspots, float proximity01, float dt);
     }
 
     /// <summary>
@@ -55,6 +59,6 @@ namespace Kondo.Slideshow
         public void SetVisible(bool visible) { }
         public Vector2 ZonePoint(SlideHotspot hotspot) => hotspot.ScreenPoint;
         public float ZoneRadius(SlideHotspot hotspot) => hotspot.ScreenRadius;
-        public void Tick(IReadOnlyList<SlideHotspot> hotspots, float dt) { }
+        public void Tick(IReadOnlyList<SlideHotspot> hotspots, float proximity01, float dt) { }
     }
 }

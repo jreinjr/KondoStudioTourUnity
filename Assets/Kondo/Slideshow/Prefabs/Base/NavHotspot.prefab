@@ -149,9 +149,8 @@ GameObject:
   - component: {fileID: 4971017194599476726}
   - component: {fileID: 1675608027700730903}
   - component: {fileID: 4141002784210848914}
-  - component: {fileID: 4262029648234907238}
   m_Layer: 0
-  m_Name: HotspotRowItem
+  m_Name: NavHotspot
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -199,7 +198,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.55}
+  m_Color: {r: 1, g: 1, b: 1, a: 0.55}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -229,31 +228,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Kondo.Slideshow.HotspotRowItem
   rectTransform: {fileID: 6627216544632326561}
-  layoutElement: {fileID: 4262029648234907238}
   background: {fileID: 1675608027700730903}
-  hoverColor: {r: 0.2, g: 0.45, b: 0.7, a: 0.9}
   label: {fileID: 807114989633185413}
   indicator: {fileID: 1267181666920427287}
---- !u!114 &4262029648234907238
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2102100485867393309}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 306cc8c2b49d7114eaa3623786fc2126, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.LayoutElement
-  m_IgnoreLayout: 0
-  m_MinWidth: 480
-  m_MinHeight: -1
-  m_PreferredWidth: 480
-  m_PreferredHeight: -1
-  m_FlexibleWidth: 0
-  m_FlexibleHeight: -1
-  m_LayoutPriority: 1
 --- !u!1001 &4166000188868590196
 PrefabInstance:
   m_ObjectHideFlags: 0

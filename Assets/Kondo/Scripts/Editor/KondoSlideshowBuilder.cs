@@ -26,7 +26,13 @@ namespace Kondo.EditorTools
         const string SlidesPrefabFolder = "Assets/Kondo/Slideshow/Prefabs/Slides";
         const string IndicatorPrefabPath = BasePrefabFolder + "/DwellIndicator.prefab";
         const string HotspotPrefabPath = BasePrefabFolder + "/Hotspot.prefab";
-        const string RowItemPrefabPath = BasePrefabFolder + "/HotspotRowItem.prefab";
+        // The pre-existing HotspotRowItem prefab is the Navigation label; the Investigation label is a
+        // separate prefab so the two bottom-row types can be styled differently. Both start identical.
+        const string NavRowItemPrefabPath = BasePrefabFolder + "/HotspotRowItem.prefab";
+        const string InvestigationRowItemPrefabPath = BasePrefabFolder + "/HotspotRowItem_Investigation.prefab";
+        // Row height / label colors are authored on the row-item prefabs (not the style); these are only
+        // the initial values a freshly-generated prefab is built with. Existing prefabs are left untouched.
+        const float DefaultRowHeightDesign = 180f;
         const string TextBlockPrefabPath = BasePrefabFolder + "/TextBlock.prefab";
         const string FocusMaskPrefabPath = BasePrefabFolder + "/FocusMask.prefab";
         const string SlideTemplatePrefabPath = BasePrefabFolder + "/SlideTemplate.prefab";
@@ -48,25 +54,29 @@ namespace Kondo.EditorTools
         public static void RepairHotspotRow()
         {
             SlideshowStyle style = EnsureStyle();
-            EnsureBasePrefabs(style); // creates HotspotRowItem.prefab (and the rest) if missing
+            EnsureBasePrefabs(style); // creates the nav + investigation HotspotRowItem prefabs (and the rest) if missing
 
-            var prefabGo = AssetDatabase.LoadAssetAtPath<GameObject>(RowItemPrefabPath);
-            HotspotRowItem prefab = prefabGo != null ? prefabGo.GetComponent<HotspotRowItem>() : null;
-            if (prefab == null)
+            var navGo = AssetDatabase.LoadAssetAtPath<GameObject>(NavRowItemPrefabPath);
+            HotspotRowItem navPrefab = navGo != null ? navGo.GetComponent<HotspotRowItem>() : null;
+            if (navPrefab == null)
             {
-                Debug.LogError("[KondoSlideshowBuilder] Could not create or load the HotspotRowItem prefab at " + RowItemPrefabPath);
+                Debug.LogError("[KondoSlideshowBuilder] Could not create or load the HotspotRowItem prefab at " + NavRowItemPrefabPath);
                 return;
             }
+            var invGo = AssetDatabase.LoadAssetAtPath<GameObject>(InvestigationRowItemPrefabPath);
+            HotspotRowItem invPrefab = invGo != null ? invGo.GetComponent<HotspotRowItem>() : null;
 
             int wired = 0;
             foreach (HotspotRowView row in Object.FindObjectsByType<HotspotRowView>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                row.rowItemPrefab = prefab;
+                row.navRowItemPrefab = navPrefab;
+                row.investigationRowItemPrefab = invPrefab;
+                EnsureRowLayoutGroup(row, style);
                 EditorUtility.SetDirty(row);
                 wired++;
             }
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-            Debug.Log($"[KondoSlideshowBuilder] HotspotRowItem prefab ensured and assigned to {wired} HotspotRowView(s) in the open scene.");
+            Debug.Log($"[KondoSlideshowBuilder] Navigation + Investigation HotspotRowItem prefabs ensured and assigned to {wired} HotspotRowView(s) in the open scene.");
         }
 
         [MenuItem("Kondo/New Slide Prefab")]
@@ -286,22 +296,35 @@ namespace Kondo.EditorTools
             // Bottom-row hotspot selection UI (used when the controller's hotspotMode is BottomRow).
             // Above the slide/blackout, below the cursor.
             RectTransform rowCanvas = BuildCanvas("[Kondo] HotspotRowCanvas", -2);
-            var rowGo = new GameObject("Row", typeof(RectTransform), typeof(CanvasGroup), typeof(HotspotRowView));
+            var rowGo = new GameObject("Row", typeof(RectTransform), typeof(CanvasGroup), typeof(HorizontalLayoutGroup), typeof(HotspotRowView));
             var rowRect = (RectTransform)rowGo.transform;
             FullStretch(rowRect, rowCanvas);
+            var rowLayout = rowGo.GetComponent<HorizontalLayoutGroup>();
+            // Widths come from each label's LayoutElement (fixed nav / flexible investigation); items keep
+            // their authored height and sit on the bottom margin. HotspotRowView reapplies spacing/margin from style.
+            rowLayout.childControlWidth = true;
+            rowLayout.childControlHeight = false;
+            rowLayout.childForceExpandWidth = false;
+            rowLayout.childForceExpandHeight = false;
+            rowLayout.childAlignment = TextAnchor.LowerCenter;
+            rowLayout.spacing = style.rowLabelSpacingDesign;
+            rowLayout.padding.bottom = Mathf.RoundToInt(style.rowBottomMarginDesign);
             var rowView = rowGo.GetComponent<HotspotRowView>();
             rowView.style = style;
             rowView.container = rowRect;
+            rowView.layoutGroup = rowLayout;
             rowView.group = rowGo.GetComponent<CanvasGroup>();
             rowView.group.alpha = 0f;
-            var rowItemPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(RowItemPrefabPath);
-            rowView.rowItemPrefab = rowItemPrefab != null ? rowItemPrefab.GetComponent<HotspotRowItem>() : null;
+            var navItemPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(NavRowItemPrefabPath);
+            rowView.navRowItemPrefab = navItemPrefab != null ? navItemPrefab.GetComponent<HotspotRowItem>() : null;
+            var invItemPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(InvestigationRowItemPrefabPath);
+            rowView.investigationRowItemPrefab = invItemPrefab != null ? invItemPrefab.GetComponent<HotspotRowItem>() : null;
             controller.hotspotRow = rowView;
 
             // Helper text: a single instructional line sitting directly above the row (same place
             // in both selection modes — the row may be hidden, the helper stays put). On the row
             // canvas so it shares the −2 sorting (above slides/blackout, below the cursor).
-            float rowTop = style.rowBottomMarginDesign + style.rowHeightDesign;
+            float rowTop = style.rowBottomMarginDesign + RowHeightDesign();
             var helperGo = new GameObject("HelperText", typeof(RectTransform), typeof(CanvasGroup), typeof(SlideshowHelperText));
             var helperRect = (RectTransform)helperGo.transform;
             helperRect.SetParent(rowCanvas, false);
@@ -349,7 +372,9 @@ namespace Kondo.EditorTools
             EnsureFolder("Assets/Kondo/Slideshow/Prefabs", "Base");
             GameObject indicator = EnsureDwellIndicatorPrefab(style);
             EnsureHotspotPrefab(style, indicator);
-            EnsureHotspotRowItemPrefab(style, indicator);
+            EnsureHotspotRowItemPrefab(style, indicator, NavRowItemPrefabPath, "HotspotRowItem", DefaultRowHeightDesign, flexible: false);
+            // Build the investigation label at the same height as the (possibly pre-existing) nav label so they line up.
+            EnsureHotspotRowItemPrefab(style, indicator, InvestigationRowItemPrefabPath, "HotspotRowItem_Investigation", RowHeightDesign(), flexible: true);
             EnsureTextBlockPrefab(style);
             EnsureFocusMaskPrefab(style);
             EnsureSlideTemplatePrefab(style);
@@ -423,20 +448,48 @@ namespace Kondo.EditorTools
             SavePrefab(root, HotspotPrefabPath);
         }
 
-        static GameObject EnsureHotspotRowItemPrefab(SlideshowStyle style, GameObject indicatorPrefab)
+        static GameObject EnsureHotspotRowItemPrefab(SlideshowStyle style, GameObject indicatorPrefab, string prefabPath, string rootName, float height, bool flexible)
         {
-            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(RowItemPrefabPath);
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
             if (existing != null)
+            {
+                // Upgrade pre-layout-group prefabs in place (keeps their hand-tuned look) by adding the
+                // LayoutElement the row now relies on. Colors/height are left untouched.
+                EnsureRowItemLayoutElement(prefabPath, flexible, style);
                 return existing;
+            }
 
-            float height = style.rowHeightDesign;
+            // Label colors and the item height are now authored on the prefab (no longer in the style),
+            // so nav/investigation labels can look different. These are just the starting values.
+            var idleBg = new Color(0f, 0f, 0f, 0.55f);
+            var hoverBg = new Color(0.2f, 0.45f, 0.7f, 0.9f);
+            var labelColor = Color.white;
 
-            var root = new GameObject("HotspotRowItem", typeof(RectTransform), typeof(Image), typeof(HotspotRowItem));
+            var root = new GameObject(rootName, typeof(RectTransform), typeof(Image), typeof(LayoutElement), typeof(HotspotRowItem));
             var rootRect = (RectTransform)root.transform;
-            rootRect.sizeDelta = new Vector2(480f, height);
+            rootRect.sizeDelta = new Vector2(style.navHotspotWidth, height);
             var bg = root.GetComponent<Image>();
-            bg.color = style.rowLabelBg;
+            bg.color = idleBg;
             bg.raycastTarget = false;
+
+            // Fixed width for navigation labels; flexible (fills the gap) for investigation labels.
+            // HotspotRowView reapplies these per instance from the style, so these are just defaults.
+            var layoutElement = root.GetComponent<LayoutElement>();
+            if (flexible)
+            {
+                layoutElement.minWidth = 0f;
+                layoutElement.preferredWidth = 0f;
+                layoutElement.flexibleWidth = 1f;
+            }
+            else
+            {
+                layoutElement.minWidth = style.navHotspotWidth;
+                layoutElement.preferredWidth = style.navHotspotWidth;
+                layoutElement.flexibleWidth = 0f;
+            }
+
+            // Secondary proximity fill, layered above the base background but below the text/ring.
+            Image fillBg = CreateRowFillBackground(rootRect, new Color(0.2f, 0.45f, 0.7f, 0.5f));
 
             var textGo = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
             var textRect = (RectTransform)textGo.transform;
@@ -448,7 +501,7 @@ namespace Kondo.EditorTools
             var tmp = textGo.GetComponent<TextMeshProUGUI>();
             tmp.text = "Label";
             tmp.alignment = TextAlignmentOptions.Center;
-            tmp.color = style.rowLabelColor;
+            tmp.color = labelColor;
             tmp.fontSize = style.rowFontSize;
             tmp.enableAutoSizing = false;
             tmp.overflowMode = TextOverflowModes.Ellipsis;
@@ -468,11 +521,116 @@ namespace Kondo.EditorTools
 
             var item = root.GetComponent<HotspotRowItem>();
             item.rectTransform = rootRect;
+            item.layoutElement = layoutElement;
             item.background = bg;
+            item.hoverColor = hoverBg;
+            item.fillBackground = fillBg;
             item.label = tmp;
             item.indicator = indicator.GetComponent<DwellIndicator>();
 
-            return SavePrefab(root, RowItemPrefabPath);
+            return SavePrefab(root, prefabPath);
+        }
+
+        /// <summary>Ensure a HotspotRowView's container has the HorizontalLayoutGroup the row layout relies on, configured and wired.</summary>
+        static void EnsureRowLayoutGroup(HotspotRowView row, SlideshowStyle style)
+        {
+            if (row.container == null)
+                return;
+            var lg = row.container.GetComponent<HorizontalLayoutGroup>();
+            if (lg == null)
+                lg = row.container.gameObject.AddComponent<HorizontalLayoutGroup>();
+            lg.childControlWidth = true;
+            lg.childControlHeight = false;
+            lg.childForceExpandWidth = false;
+            lg.childForceExpandHeight = false;
+            lg.childAlignment = TextAnchor.LowerCenter;
+            lg.spacing = style.rowLabelSpacingDesign;
+            lg.padding.bottom = Mathf.RoundToInt(style.rowBottomMarginDesign);
+            row.layoutGroup = lg;
+        }
+
+        /// <summary>Row height (design units) = the nav row-item prefab's authored height, else the default.</summary>
+        static float RowHeightDesign()
+        {
+            var navGo = AssetDatabase.LoadAssetAtPath<GameObject>(NavRowItemPrefabPath);
+            if (navGo != null)
+                return ((RectTransform)navGo.transform).sizeDelta.y;
+            return DefaultRowHeightDesign;
+        }
+
+        /// <summary>
+        /// Upgrade an existing row-item prefab in place (keeping its hand-tuned look) so it has the
+        /// components the row now relies on: a LayoutElement (for the HorizontalLayoutGroup width) and
+        /// a secondary FillBackground image (the proximity fill). No-op once both exist, so idempotent.
+        /// </summary>
+        static void EnsureRowItemLayoutElement(string prefabPath, bool flexible, SlideshowStyle style)
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            var assetItem = asset != null ? asset.GetComponent<HotspotRowItem>() : null;
+            if (assetItem != null && assetItem.layoutElement != null && assetItem.fillBackground != null)
+                return; // already upgraded
+
+            GameObject root = PrefabUtility.LoadPrefabContents(prefabPath);
+            try
+            {
+                var item = root.GetComponent<HotspotRowItem>();
+
+                var le = root.GetComponent<LayoutElement>();
+                if (le == null)
+                    le = root.AddComponent<LayoutElement>();
+                if (flexible)
+                {
+                    le.minWidth = 0f;
+                    le.preferredWidth = 0f;
+                    le.flexibleWidth = 1f;
+                }
+                else
+                {
+                    le.minWidth = style.navHotspotWidth;
+                    le.preferredWidth = style.navHotspotWidth;
+                    le.flexibleWidth = 0f;
+                }
+
+                if (item != null)
+                {
+                    item.layoutElement = le;
+                    if (item.fillBackground == null)
+                        item.fillBackground = CreateRowFillBackground((RectTransform)root.transform,
+                            new Color(0.2f, 0.45f, 0.7f, 0.5f));
+                }
+                PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+        }
+
+        /// <summary>
+        /// Create the secondary proximity-fill image for a row-item: a Filled white image stretched over
+        /// the label, inserted as the first child so it draws above the base background but below the
+        /// text/ring. Its color (the fill color) is authored on the prefab afterwards.
+        /// </summary>
+        static Image CreateRowFillBackground(RectTransform parent, Color color)
+        {
+            Sprite white = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
+            var go = new GameObject("FillBackground", typeof(RectTransform), typeof(Image));
+            var rect = (RectTransform)go.transform;
+            rect.SetParent(parent, false);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            rect.SetAsFirstSibling();
+            var img = go.GetComponent<Image>();
+            img.sprite = white;
+            img.type = Image.Type.Filled;
+            img.fillMethod = Image.FillMethod.Horizontal;
+            img.fillOrigin = (int)Image.OriginHorizontal.Left;
+            img.fillAmount = 0f;
+            img.color = color;
+            img.raycastTarget = false;
+            return img;
         }
 
         static void EnsureTextBlockPrefab(SlideshowStyle style)

@@ -7,6 +7,7 @@ namespace Kondo.Slideshow
     {
         Video,
         FadeThroughBlack,
+        Crossfade,
     }
 
     /// <summary>
@@ -29,11 +30,20 @@ namespace Kondo.Slideshow
         public bool overrideFadeDuration;
         [Min(0.05f)] public float fadeThroughBlackSecondsOverride = 1f;
 
+        [Tooltip("Override the style's crossfade duration. Used when kind is Crossfade.")]
+        public bool overrideCrossfadeDuration;
+        [Min(0.05f)] public float crossfadeSecondsOverride = 1f;
+
         public bool IsValid => targetSlide != null;
 
         public float FadeThroughBlackSeconds(SlideshowStyle style)
         {
             return overrideFadeDuration || style == null ? fadeThroughBlackSecondsOverride : style.fadeThroughBlackSeconds;
+        }
+
+        public float CrossfadeSeconds(SlideshowStyle style)
+        {
+            return overrideCrossfadeDuration || style == null ? crossfadeSecondsOverride : style.crossfadeSeconds;
         }
     }
 }

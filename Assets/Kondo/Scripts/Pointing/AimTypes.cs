@@ -10,6 +10,31 @@ namespace Kondo.Pointing
         Left,
     }
 
+    /// <summary>
+    /// The kind of hotspot currently under a cursor, pushed from the slideshow hit-test to the
+    /// cursor view (e.g. to drive an animated cursor's state). Lives on the pointing side so the
+    /// cursor stays decoupled from <c>Kondo.Slideshow</c>; the slideshow maps its own hotspot tag
+    /// into this at the seam.
+    /// </summary>
+    public enum CursorHotspotKind
+    {
+        None,
+        Navigation,
+        Investigation,
+    }
+
+    /// <summary>
+    /// Which cursor visual the pointer manager instantiates for every user. (Named to avoid
+    /// colliding with <c>UnityEngine.CursorMode</c>.)
+    /// </summary>
+    public enum PointerCursorMode
+    {
+        [Tooltip("The classic ring + growing central dot cursor.")]
+        Classic,
+        [Tooltip("A prefab driven by an Animator Controller (proximity float + hotspot-kind bools).")]
+        Animated,
+    }
+
     public enum RayModel
     {
         [Tooltip("Forearm direction (elbow → hand). Matches pointing intent best, but has the shortest baseline (most jitter).")]
